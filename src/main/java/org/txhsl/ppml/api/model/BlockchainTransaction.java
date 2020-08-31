@@ -1,4 +1,4 @@
-package pl.piomin.service.blockchain.model;
+package org.txhsl.ppml.api.model;
 
 public class BlockchainTransaction {
 

@@ -1,10 +1,10 @@
-package pl.piomin.service.blockchain.controller;
+package org.txhsl.ppml.api.controller;
 
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
-import pl.piomin.service.blockchain.model.BlockchainTransaction;
-import pl.piomin.service.blockchain.service.BlockchainService;
+import org.txhsl.ppml.api.model.BlockchainTransaction;
+import org.txhsl.ppml.api.service.BlockchainService;
 
 import java.io.IOException;
 

@@ -1,4 +1,4 @@
-package pl.piomin.service.blockchain;
+package org.txhsl.ppml.api;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,7 +9,7 @@ import org.web3j.protocol.core.DefaultBlockParameterName;
 import org.web3j.protocol.core.methods.request.Transaction;
 import org.web3j.protocol.core.methods.response.EthCoinbase;
 import org.web3j.protocol.core.methods.response.EthGetTransactionCount;
-import pl.piomin.service.blockchain.service.BlockchainService;
+import org.txhsl.ppml.api.service.BlockchainService;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
