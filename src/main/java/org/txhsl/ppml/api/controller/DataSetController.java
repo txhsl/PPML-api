@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.txhsl.ppml.api.model.DataSetRequest;
 import org.txhsl.ppml.api.service.BlockchainService;
+import org.txhsl.ppml.api.service.EncryptService;
 import org.txhsl.ppml.api.service.IPFSService;
 
 import java.io.IOException;
@@ -14,10 +15,12 @@ public class DataSetController {
 
     private final BlockchainService blockchainService;
     private final IPFSService ipfsService;
+    private final EncryptService encryptService;
 
-    public DataSetController(BlockchainService blockchainService, IPFSService ipfsService) {
+    public DataSetController(BlockchainService blockchainService, IPFSService ipfsService, EncryptService encryptService) {
         this.blockchainService = blockchainService;
         this.ipfsService = ipfsService;
+        this.encryptService = encryptService;
     }
 
     @PostMapping("/create")
@@ -62,7 +65,7 @@ public class DataSetController {
 
     @PostMapping("/get")
     public DataSetRequest get(@RequestBody DataSetRequest request) throws Exception {
-        String reEncryptedKey = blockchainService.getReEncryptedKey(request.getEncryptedKey());
+        String reEncryptedKey = blockchainService.getReEncryptedKey(request.getReEncryptedKey());
         String encryptedHash = blockchainService.getVolume(request.getEncryptedKey(), request.getVolume());
 
         String hash = encryptedHash;

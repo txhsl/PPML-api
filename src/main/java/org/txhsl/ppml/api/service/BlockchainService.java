@@ -55,6 +55,10 @@ public class BlockchainService {
         }
     }
 
+    public Credentials getCredentials() {
+        return credentials;
+    }
+
     public TransactionReceipt deploy(Credentials credentials) throws Exception {
         if(this.contract == null) {
             this.contract = DataSets_sol_DataSets.deploy(web3j, credentials, GAS_PRICE, GAS_LIMIT).send();
