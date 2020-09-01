@@ -2,11 +2,15 @@ package org.txhsl.ppml.api.model;
 
 public class DataSetRequest {
     private String filePath;
-    private String hash;
-    private int volume;
-    private String encryptedHash;
     private String key;
     private String encryptedKey;
+    private Volume[] volumes;
+
+    private int volume;
+    private String hash;
+    private String name;
+    private String encryptedHash;
+
     private String reEncryptedKey;
     private String to;
     private boolean completed;
@@ -27,6 +31,10 @@ public class DataSetRequest {
         return key;
     }
 
+    public Volume[] getVolumes() {
+        return volumes;
+    }
+
     public String getEncryptedKey() {
         return encryptedKey;
     }
@@ -37,6 +45,10 @@ public class DataSetRequest {
 
     public String getHash() {
         return hash;
+    }
+
+    public String getName() {
+        return name;
     }
 
     public int getVolume() {
@@ -59,6 +71,10 @@ public class DataSetRequest {
         this.encryptedKey = encryptedKey;
     }
 
+    public void setVolumes(Volume[] volumes) {
+        this.volumes = volumes;
+    }
+
     public void setReEncryptedKey(String reEncryptedKey) {
         this.reEncryptedKey = reEncryptedKey;
     }
@@ -69,6 +85,10 @@ public class DataSetRequest {
 
     public void setHash(String hash) {
         this.hash = hash;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 
     public void setVolume(int volume) {

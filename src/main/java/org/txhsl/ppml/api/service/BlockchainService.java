@@ -15,10 +15,13 @@ import org.web3j.crypto.CipherException;
 import org.web3j.crypto.Credentials;
 import org.web3j.crypto.WalletUtils;
 import org.web3j.protocol.Web3j;
+import org.web3j.protocol.core.DefaultBlockParameter;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
+import org.web3j.utils.Convert;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigInteger;
 
 import static org.web3j.tx.gas.DefaultGasProvider.GAS_LIMIT;
 import static org.web3j.tx.gas.DefaultGasProvider.GAS_PRICE;
@@ -36,15 +39,7 @@ public class BlockchainService {
         this.web3j = web3j;
     }
 
-    public void login(String address, String password) throws IOException, CipherException {
-        Resource resource = new ClassPathResource(address);
-        File file = resource.getFile();
-        this.credentials = WalletUtils.loadCredentials(
-                password,
-                file.getAbsolutePath());
-        LOGGER.error("Wallet opened: " + credentials.getAddress());
-    }
-
+    // Self
     public void recover(Credentials credentials) {
         try {
             Resource resource = new ClassPathResource("system.json");
@@ -53,10 +48,6 @@ public class BlockchainService {
         } catch (Exception e) {
             LOGGER.error("Contract address not found. " + e.getMessage());
         }
-    }
-
-    public Credentials getCredentials() {
-        return credentials;
     }
 
     public TransactionReceipt deploy(Credentials credentials) throws Exception {
@@ -76,14 +67,36 @@ public class BlockchainService {
         }
     }
 
+    // UserController
+    public void login(String address, String password) throws IOException, CipherException {
+        Resource resource = new ClassPathResource(address);
+        File file = resource.getFile();
+        this.credentials = WalletUtils.loadCredentials(
+                password,
+                file.getAbsolutePath());
+        LOGGER.info("Wallet opened: " + credentials.getAddress());
+    }
+
+    public Credentials getCredentials() {
+        return credentials;
+    }
+
+    public double getBalance() throws IOException {
+        BigInteger wei =  web3j.ethGetBalance(this.credentials.getAddress(), DefaultBlockParameter.valueOf("latest")).send().getBalance();
+        double balance = Convert.fromWei(wei.toString(), Convert.Unit.ETHER).doubleValue();
+        LOGGER.info("Balance read: " + balance);
+        return balance;
+    }
+
+    // DataSetController
     public TransactionReceipt createDataSet(String key) throws Exception {
         TransactionReceipt receipt = this.contract.createDataSet(new Utf8String(key)).send();
         LOGGER.info("DataSet created: " + key);
         return receipt;
     }
 
-    public TransactionReceipt addVolume(String key, String hash) throws Exception {
-        TransactionReceipt receipt = this.contract.addVolume(new Utf8String(key), new Utf8String(hash)).send();
+    public TransactionReceipt addVolume(String key, String name, String hash) throws Exception {
+        TransactionReceipt receipt = this.contract.addVolume(new Utf8String(key), new Utf8String(name), new Utf8String(hash)).send();
         LOGGER.info("Volume added. Key: " + key + ", volume: " + hash);
         return receipt;
     }
@@ -102,8 +115,16 @@ public class BlockchainService {
         return this.contract.getAmount(new Utf8String(key)).send().getValue().intValue();
     }
 
-    public String getVolume(String key, int volume) throws Exception {
-        return this.contract.getVolume(new Utf8String(key), new Uint256(volume)).send().getValue();
+    public String getVolumeName(String key, int volume) throws Exception {
+        return this.contract.getVolumeName(new Utf8String(key), new Uint256(volume)).send().getValue();
+    }
+
+    public int getVolumeTime(String key, int volume) throws Exception {
+        return this.contract.getVolumeTime(new Utf8String(key), new Uint256(volume)).send().getValue().intValue();
+    }
+
+    public String getVolumeHash(String key, int volume) throws Exception {
+        return this.contract.getVolumeHash(new Utf8String(key), new Uint256(volume)).send().getValue();
     }
 
     public String getReEncryptedKey(String key) throws Exception {

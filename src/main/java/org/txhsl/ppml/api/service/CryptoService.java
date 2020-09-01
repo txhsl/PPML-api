@@ -5,11 +5,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
-public class EncryptService {
+public class CryptoService {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(EncryptService.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(CryptoService.class);
 
-    public EncryptService() {}
+    public CryptoService() {}
 
     public String encrypt(String raw, String pubKey) {
         return raw;
