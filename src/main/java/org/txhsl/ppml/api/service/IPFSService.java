@@ -7,6 +7,7 @@ import io.ipfs.multihash.Multihash;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -37,6 +38,12 @@ public class IPFSService {
         }
     }
 
+    public String save(MultipartFile multipartFile, String fileName) throws IOException {
+        File file = new File(cacheFolder.getAbsolutePath() + '\\' + fileName);
+        multipartFile.transferTo(file);
+        return file.getAbsolutePath();
+    }
+
     public String upload(String path) throws IOException {
         File target = new File(path);
         NamedStreamable.FileWrapper file = new NamedStreamable.FileWrapper(target);
@@ -51,7 +58,7 @@ public class IPFSService {
         Multihash filePointer = Multihash.fromBase58(hash);
         byte[] data = ipfs.cat(filePointer);
         if(data != null){
-            File file = new File(cacheFolder.getPath() + '\\' +hash);
+            File file = new File(cacheFolder.getAbsolutePath() + '\\' + hash);
             if(file.exists()){
                 LOGGER.info("File already existed, path: " + file.getPath());
                 return file;

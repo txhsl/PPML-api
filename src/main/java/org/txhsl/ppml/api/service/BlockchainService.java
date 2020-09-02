@@ -37,16 +37,27 @@ public class BlockchainService {
 
     public BlockchainService(Web3j web3j) {
         this.web3j = web3j;
+        try {
+            this.login("0x6a2fb5e3bf37f0c3d90db4713f7ad4a3b2c24111", "Innov@teD@ily1");
+            if(!this.recover(this.credentials)){
+                this.deploy(this.credentials);
+            }
+        } catch (Exception e){
+            LOGGER.error("Default wallet not found. " + e.getMessage());
+        }
     }
 
     // Self
-    public void recover(Credentials credentials) {
+    public boolean recover(Credentials credentials) {
         try {
             Resource resource = new ClassPathResource("system.json");
             JSONObject json = new JSONObject(new String(FileCopyUtils.copyToByteArray(resource.getFile())));
             this.contract = DataSets_sol_DataSets.load(json.getString("address"), web3j, credentials, GAS_PRICE, GAS_LIMIT);
+            LOGGER.info("Contract connected: " + this.contract.getContractAddress());
+            return true;
         } catch (Exception e) {
             LOGGER.error("Contract address not found. " + e.getMessage());
+            return false;
         }
     }
 

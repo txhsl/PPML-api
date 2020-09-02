@@ -1,9 +1,7 @@
 package org.txhsl.ppml.api.controller;
 
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.txhsl.ppml.api.model.DataSetRequest;
 import org.txhsl.ppml.api.model.Volume;
 import org.txhsl.ppml.api.service.BlockchainService;
@@ -66,18 +64,19 @@ public class DataSetController {
         return request;
     }
 
-    @PostMapping("/getKey")
-    public DataSetRequest getKey(@RequestBody DataSetRequest request) throws Exception {
+    @PostMapping("/decryptHash")
+    public DataSetRequest decryptHash(@RequestBody DataSetRequest request) throws Exception {
         String encryptedKey = request.getEncryptedKey();
-        blockchainService.getReEncryptedKey(encryptedKey);
+        String encryptedHash = request.getEncryptedHash();
+        String key = cryptoService.decrypt(blockchainService.getReEncryptedKey(encryptedKey), "");
 
-        request.setKey(cryptoService.decrypt(encryptedKey, ""));
+        request.setHash(cryptoService.decrypt(encryptedHash, key));
         request.setCompleted(true);
         return request;
     }
 
-    @PostMapping("/getVolumes")
-    public DataSetRequest getVolumes(@RequestBody DataSetRequest request) throws Exception {
+    @PostMapping("/get")
+    public DataSetRequest get(@RequestBody DataSetRequest request) throws Exception {
         String encryptedKey = request.getEncryptedKey();
         int amount = blockchainService.getAmount(encryptedKey);
 
@@ -89,9 +88,11 @@ public class DataSetController {
             String encryptedHash = blockchainService.getVolumeHash(encryptedKey, i);
             String hash = cryptoService.decrypt(encryptedHash, "");
 
-            volumes[i] = new Volume(i, name, sdf.format(new Date(time * 1000L)), hash);
+            volumes[i - 1] = new Volume(i, name, sdf.format(new Date(time * 1000L)), hash);
         }
 
+        request.setOwner(blockchainService.getOwner(encryptedKey));
+        request.setAmount(amount);
         request.setVolumes(volumes);
         request.setCompleted(true);
 
@@ -99,10 +100,13 @@ public class DataSetController {
     }
 
     @PostMapping("/upload")
-    public DataSetRequest upload(@RequestBody DataSetRequest request) throws IOException {
-        String hash = ipfsService.upload(request.getFilePath());
+    public DataSetRequest upload(@RequestParam("file") MultipartFile multipartFile) throws IOException {
+        String path = ipfsService.save(multipartFile, multipartFile.getOriginalFilename());
+        String hash = ipfsService.upload(path);
 
+        DataSetRequest request = new DataSetRequest();
         request.setHash(hash);
+        request.setName(multipartFile.getName());
         request.setCompleted(true);
 
         return request;
@@ -112,7 +116,7 @@ public class DataSetController {
     public DataSetRequest download(@RequestBody DataSetRequest request) throws IOException {
         String path = ipfsService.download(request.getHash()).getAbsolutePath();
 
-        request.setFilePath(path);
+        request.setPath(path);
         request.setCompleted(true);
 
         return request;
