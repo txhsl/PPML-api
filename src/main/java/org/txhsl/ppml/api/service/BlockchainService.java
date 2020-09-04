@@ -33,7 +33,7 @@ public class BlockchainService {
 
     private final Web3j web3j;
     private Credentials credentials;
-    private DataSets_sol_DataSets contract;
+    private DataSets_sol_DataSets dataContract;
 
     public BlockchainService(Web3j web3j) {
         this.web3j = web3j;
@@ -52,8 +52,8 @@ public class BlockchainService {
         try {
             Resource resource = new ClassPathResource("system.json");
             JSONObject json = new JSONObject(new String(FileCopyUtils.copyToByteArray(resource.getFile())));
-            this.contract = DataSets_sol_DataSets.load(json.getString("address"), web3j, credentials, GAS_PRICE, GAS_LIMIT);
-            LOGGER.info("Contract connected: " + this.contract.getContractAddress());
+            this.dataContract = DataSets_sol_DataSets.load(json.getString("address"), web3j, credentials, GAS_PRICE, GAS_LIMIT);
+            LOGGER.info("Contract connected: " + this.dataContract.getContractAddress());
             return true;
         } catch (Exception e) {
             LOGGER.error("Contract address not found. " + e.getMessage());
@@ -62,16 +62,16 @@ public class BlockchainService {
     }
 
     public TransactionReceipt deploy(Credentials credentials) throws Exception {
-        if(this.contract == null) {
-            this.contract = DataSets_sol_DataSets.deploy(web3j, credentials, GAS_PRICE, GAS_LIMIT).send();
-            LOGGER.info("Contract deployed: " + this.contract.getContractAddress());
+        if(this.dataContract == null) {
+            this.dataContract = DataSets_sol_DataSets.deploy(web3j, credentials, GAS_PRICE, GAS_LIMIT).send();
+            LOGGER.info("Contract deployed: " + this.dataContract.getContractAddress());
         }
         else {
-            LOGGER.info("Contract existed: " + this.contract.getContractAddress());
+            LOGGER.info("Contract existed: " + this.dataContract.getContractAddress());
         }
 
-        if(this.contract.getTransactionReceipt().isPresent()) {
-            return this.contract.getTransactionReceipt().get();
+        if(this.dataContract.getTransactionReceipt().isPresent()) {
+            return this.dataContract.getTransactionReceipt().get();
         }
         else {
             return null;
@@ -101,44 +101,44 @@ public class BlockchainService {
 
     // DataSetController
     public TransactionReceipt createDataSet(String key) throws Exception {
-        TransactionReceipt receipt = this.contract.createDataSet(new Utf8String(key)).send();
+        TransactionReceipt receipt = this.dataContract.createDataSet(new Utf8String(key)).send();
         LOGGER.info("DataSet created: " + key);
         return receipt;
     }
 
     public TransactionReceipt addVolume(String key, String name, String hash) throws Exception {
-        TransactionReceipt receipt = this.contract.addVolume(new Utf8String(key), new Utf8String(name), new Utf8String(hash)).send();
+        TransactionReceipt receipt = this.dataContract.addVolume(new Utf8String(key), new Utf8String(name), new Utf8String(hash)).send();
         LOGGER.info("Volume added. Key: " + key + ", volume: " + hash);
         return receipt;
     }
 
     public TransactionReceipt shareKey(String key, String to, String reEncryptedKey) throws Exception {
-        TransactionReceipt receipt = this.contract.shareKey(new Utf8String(key), new Address(to), new Utf8String(reEncryptedKey)).send();
+        TransactionReceipt receipt = this.dataContract.shareKey(new Utf8String(key), new Address(to), new Utf8String(reEncryptedKey)).send();
         LOGGER.info("Key " + key + " shared, to " + to);
         return receipt;
     }
 
     public String getOwner(String key) throws Exception {
-        return this.contract.getOwner(new Utf8String(key)).send().getValue();
+        return this.dataContract.getOwner(new Utf8String(key)).send().getValue();
     }
 
     public int getAmount(String key) throws Exception {
-        return this.contract.getAmount(new Utf8String(key)).send().getValue().intValue();
+        return this.dataContract.getAmount(new Utf8String(key)).send().getValue().intValue();
     }
 
     public String getVolumeName(String key, int volume) throws Exception {
-        return this.contract.getVolumeName(new Utf8String(key), new Uint256(volume)).send().getValue();
+        return this.dataContract.getVolumeName(new Utf8String(key), new Uint256(volume)).send().getValue();
     }
 
     public int getVolumeTime(String key, int volume) throws Exception {
-        return this.contract.getVolumeTime(new Utf8String(key), new Uint256(volume)).send().getValue().intValue();
+        return this.dataContract.getVolumeTime(new Utf8String(key), new Uint256(volume)).send().getValue().intValue();
     }
 
     public String getVolumeHash(String key, int volume) throws Exception {
-        return this.contract.getVolumeHash(new Utf8String(key), new Uint256(volume)).send().getValue();
+        return this.dataContract.getVolumeHash(new Utf8String(key), new Uint256(volume)).send().getValue();
     }
 
     public String getReEncryptedKey(String key) throws Exception {
-        return this.contract.getReEncryptedKey(new Utf8String(key)).send().getValue();
+        return this.dataContract.getReEncryptedKey(new Utf8String(key)).send().getValue();
     }
 }

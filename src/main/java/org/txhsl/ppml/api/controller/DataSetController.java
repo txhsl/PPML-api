@@ -1,5 +1,7 @@
 package org.txhsl.ppml.api.controller;
 
+import org.ethereum.crypto.ECKey;
+import org.spongycastle.crypto.InvalidCipherTextException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.txhsl.ppml.api.model.DataSetRequest;
@@ -28,7 +30,9 @@ public class DataSetController {
 
     @PostMapping("/create")
     public DataSetRequest create(@RequestBody DataSetRequest request) throws Exception {
-        String encryptedKey = cryptoService.encrypt(request.getKey(), "");
+        ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
+
+        String encryptedKey = cryptoService.eccEncrypt(ecKey.getPubKeyPoint(), cryptoService.aesKeyGen());
 
         blockchainService.createDataSet(encryptedKey);
 
@@ -40,8 +44,11 @@ public class DataSetController {
 
     @PostMapping("/add")
     public DataSetRequest add(@RequestBody DataSetRequest request) throws Exception {
+        ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
+
         String encryptedKey = request.getEncryptedKey();
-        String encryptedHash = cryptoService.encrypt(request.getHash(), "");
+        String key = cryptoService.eccDecrypt(ecKey.getPrivKey(), encryptedKey);
+        String encryptedHash = cryptoService.aesEncrypt(key, request.getHash());
 
         blockchainService.addVolume(encryptedKey, request.getName(), encryptedHash);
 
@@ -53,8 +60,10 @@ public class DataSetController {
 
     @PostMapping("/share")
     public DataSetRequest share(@RequestBody DataSetRequest request) throws Exception {
+        ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
+
         String encryptedKey = request.getEncryptedKey();
-        String reEncryptedKey = cryptoService.reEncrypt(encryptedKey, "");
+        String reEncryptedKey = cryptoService.eccReEncrypt(encryptedKey, ecKey.getPrivKey());
 
         blockchainService.shareKey(encryptedKey, request.getTo(), reEncryptedKey);
 
@@ -66,19 +75,25 @@ public class DataSetController {
 
     @PostMapping("/decryptHash")
     public DataSetRequest decryptHash(@RequestBody DataSetRequest request) throws Exception {
+        ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
+
         String encryptedKey = request.getEncryptedKey();
         String encryptedHash = request.getEncryptedHash();
-        String key = cryptoService.decrypt(blockchainService.getReEncryptedKey(encryptedKey), "");
 
-        request.setHash(cryptoService.decrypt(encryptedHash, key));
+        String key = cryptoService.eccDecrypt(ecKey.getPrivKey(), encryptedKey);
+
+        request.setHash(cryptoService.aesDecrypt(key, encryptedHash));
         request.setCompleted(true);
         return request;
     }
 
     @PostMapping("/get")
     public DataSetRequest get(@RequestBody DataSetRequest request) throws Exception {
+        ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
+
         String encryptedKey = request.getEncryptedKey();
         int amount = blockchainService.getAmount(encryptedKey);
+        String key = cryptoService.eccDecrypt(ecKey.getPrivKey(), encryptedKey);
 
         Volume[] volumes = new Volume[amount];
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
@@ -86,7 +101,7 @@ public class DataSetController {
             String name = blockchainService.getVolumeName(encryptedKey, i);
             int time = blockchainService.getVolumeTime(encryptedKey, i);
             String encryptedHash = blockchainService.getVolumeHash(encryptedKey, i);
-            String hash = cryptoService.decrypt(encryptedHash, "");
+            String hash = cryptoService.aesDecrypt(key, encryptedHash);
 
             volumes[i - 1] = new Volume(i, name, sdf.format(new Date(time * 1000L)), hash);
         }
@@ -120,5 +135,21 @@ public class DataSetController {
         request.setCompleted(true);
 
         return request;
+    }
+
+    @GetMapping("/testECC")
+    public void testECC() throws IOException, InvalidCipherTextException {
+        ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
+        String plaintext = "Hello world";
+        String cipher = cryptoService.eccEncrypt(ecKey.getPubKeyPoint(), plaintext);
+        String result = cryptoService.eccDecrypt(ecKey.getPrivKey(), cipher);
+    }
+
+    @GetMapping("/testAES")
+    public void testAES() throws Exception {
+        String aesKey = cryptoService.aesKeyGen();
+        String plaintext = "Hello world";
+        String cipher = cryptoService.aesEncrypt(aesKey, plaintext);
+        String result = cryptoService.aesDecrypt(aesKey, cipher);
     }
 }
