@@ -63,7 +63,7 @@ public class DataSetController {
         ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
 
         String encryptedKey = request.getEncryptedKey();
-        String reEncryptedKey = cryptoService.eccReEncrypt(encryptedKey, ecKey.getPrivKey());
+        String reEncryptedKey = "";//cryptoService.eccReEncrypt(encryptedKey, ecKey.getPrivKey(), ecKey.getPrivKey());
 
         blockchainService.shareKey(encryptedKey, request.getTo(), reEncryptedKey);
 
@@ -101,9 +101,8 @@ public class DataSetController {
             String name = blockchainService.getVolumeName(encryptedKey, i);
             int time = blockchainService.getVolumeTime(encryptedKey, i);
             String encryptedHash = blockchainService.getVolumeHash(encryptedKey, i);
-            String hash = cryptoService.aesDecrypt(key, encryptedHash);
 
-            volumes[i - 1] = new Volume(i, name, sdf.format(new Date(time * 1000L)), hash);
+            volumes[i - 1] = new Volume(i, name, sdf.format(new Date(time * 1000L)), encryptedHash);
         }
 
         request.setOwner(blockchainService.getOwner(encryptedKey));
@@ -151,5 +150,16 @@ public class DataSetController {
         String plaintext = "Hello world";
         String cipher = cryptoService.aesEncrypt(aesKey, plaintext);
         String result = cryptoService.aesDecrypt(aesKey, cipher);
+    }
+
+    @GetMapping("/testPRE")
+    public void testPRE() throws Exception {
+        ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
+        String plaintext = "Hello world";
+        byte[] capsule = cryptoService.encryptKeyGen(ecKey.getPubKeyPoint());
+        String cipher = cryptoService.encrypt(capsule, ecKey.getPrivKey(), plaintext);
+        //byte[] reCapsule = cryptoService.reEncrypt(capsule, ecKey.getPrivKey(), kp.getPublicKey().getValue().getValue());
+        String result = cryptoService.decrypt(capsule, ecKey.getPrivKey(), cipher);
+        //String result1 = cryptoService.decrypt(reCapsule, ecKey1.getPrivKey(), cipher);
     }
 }

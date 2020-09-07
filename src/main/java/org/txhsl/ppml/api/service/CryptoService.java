@@ -21,6 +21,7 @@ import org.spongycastle.crypto.params.*;
 import org.spongycastle.math.ec.ECPoint;
 import org.spongycastle.util.encoders.Hex;
 import org.springframework.stereotype.Service;
+import org.txhsl.ppml.api.service.crypto.*;
 
 import javax.crypto.*;
 import javax.crypto.spec.SecretKeySpec;
@@ -31,6 +32,7 @@ import java.math.BigInteger;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.util.List;
 
 @Service
 public class CryptoService {
@@ -38,11 +40,34 @@ public class CryptoService {
     private static final Logger LOGGER = LoggerFactory.getLogger(CryptoService.class);
 
     public static final int KEY_SIZE = 128;
-    private static ECDomainParameters curve;
-    private static final X9ECParameters IES_CURVE_PARAM = SECNamedCurves.getByName("secp256k1");
+    public static ECDomainParameters curve;
+    public static final X9ECParameters IES_CURVE_PARAM = SECNamedCurves.getByName("secp256k1");
 
     public CryptoService() {
         curve = new ECDomainParameters(IES_CURVE_PARAM.getCurve(), IES_CURVE_PARAM.getG(), IES_CURVE_PARAM.getN(), IES_CURVE_PARAM.getH());
+    }
+
+    public byte[] encryptKeyGen(ECPoint toPub) throws NoSuchAlgorithmException {
+        List<Object> cp = Proxy.encapsulate(PublicKey.fromBytes(toPub.getEncoded(true)));
+        LOGGER.info("Symmetric key generated: " + Hex.toHexString(((Scalar) cp.get(1)).toBytes()));
+        return ((Capsule) cp.get(0)).toBytes();
+    }
+
+    public String encrypt(byte[] capsule, BigInteger prv, String plaintext) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
+        Scalar symmetricKey = Proxy.decapsulate(Capsule.fromBytes(capsule), PrivateKey.fromBytes(prv.toByteArray()));
+        LOGGER.info("Symmetric key decrypted: " + Hex.toHexString(symmetricKey.toBytes()));
+        return aesEncrypt(Hex.toHexString(symmetricKey.getValue().toByteArray()), plaintext);
+    }
+
+    public byte[] reEncrypt(byte[] capsule, BigInteger prv, ECPoint pub) throws NoSuchAlgorithmException {
+        ReEncryptionKey rk = Proxy.generateReEncryptionKey(PrivateKey.fromBytes(prv.toByteArray()), PublicKey.fromBytes(pub.getEncoded(true)));
+        return Proxy.reEncryptCapsule(Capsule.fromBytes(capsule), rk).toBytes();
+    }
+
+    public String decrypt(byte[] reCapsule, BigInteger prv, String cipher) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
+        Scalar reSymmetricKey = Proxy.decapsulate(Capsule.fromBytes(reCapsule), PrivateKey.fromBytes(prv.toByteArray()));
+        LOGGER.info("Symmetric key decrypted: " + Hex.toHexString(reSymmetricKey.toBytes()));
+        return aesDecrypt(Hex.toHexString(reSymmetricKey.getValue().toByteArray()), cipher);
     }
 
     public String eccDecrypt(BigInteger prv, String cipher) throws InvalidCipherTextException, IOException {
@@ -120,13 +145,9 @@ public class CryptoService {
         return iesEngine;
     }
 
-    public String eccReEncrypt(String encrypted, BigInteger preKey) {
-        return encrypted;
-    }
-
     public String aesKeyGen() throws NoSuchAlgorithmException {
         KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
-        keyGenerator.init(128);
+        keyGenerator.init(256);
         SecretKey key = keyGenerator.generateKey();
 
         LOGGER.info("AESKey generated: " + Hex.toHexString(key.getEncoded()));
