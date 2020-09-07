@@ -48,7 +48,7 @@ public class CryptoService {
     }
 
     public byte[] encryptKeyGen(ECPoint toPub) throws NoSuchAlgorithmException {
-        List<Object> cp = Proxy.encapsulate(PublicKey.fromBytes(toPub.getEncoded(true)));
+        List<Object> cp = Proxy.encapsulate(new PublicKey(new GroupElement(new Curve("secp256k1"), toPub)));
         LOGGER.info("Symmetric key generated: " + Hex.toHexString(((Scalar) cp.get(1)).toBytes()));
         return ((Capsule) cp.get(0)).toBytes();
     }
@@ -60,7 +60,7 @@ public class CryptoService {
     }
 
     public byte[] reEncrypt(byte[] capsule, BigInteger prv, ECPoint pub) throws NoSuchAlgorithmException {
-        ReEncryptionKey rk = Proxy.generateReEncryptionKey(PrivateKey.fromBytes(prv.toByteArray()), PublicKey.fromBytes(pub.getEncoded(true)));
+        ReEncryptionKey rk = Proxy.generateReEncryptionKey(PrivateKey.fromBytes(prv.toByteArray()), new PublicKey(new GroupElement(new Curve("secp256k1"), pub)));
         return Proxy.reEncryptCapsule(Capsule.fromBytes(capsule), rk).toBytes();
     }
 

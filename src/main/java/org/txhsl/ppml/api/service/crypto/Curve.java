@@ -1,9 +1,9 @@
 package org.txhsl.ppml.api.service.crypto;
 
-import org.bouncycastle.jce.ECNamedCurveTable;
-import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
-import org.bouncycastle.math.ec.ECCurve;
-import org.bouncycastle.math.ec.ECPoint;
+import org.spongycastle.jce.ECNamedCurveTable;
+import org.spongycastle.jce.spec.ECNamedCurveParameterSpec;
+import org.spongycastle.math.ec.ECCurve;
+import org.spongycastle.math.ec.ECPoint;
 
 import java.math.BigInteger;
 

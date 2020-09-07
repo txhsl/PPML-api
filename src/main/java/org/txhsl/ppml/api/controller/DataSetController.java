@@ -1,7 +1,6 @@
 package org.txhsl.ppml.api.controller;
 
 import org.ethereum.crypto.ECKey;
-import org.spongycastle.crypto.InvalidCipherTextException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.txhsl.ppml.api.model.DataSetRequest;
@@ -137,7 +136,8 @@ public class DataSetController {
     }
 
     @GetMapping("/testECC")
-    public void testECC() throws IOException, InvalidCipherTextException {
+    public void testECC() throws Exception {
+        blockchainService.login("0x6a2fb5e3bf37f0c3d90db4713f7ad4a3b2c24111", "Innov@teD@ily1");
         ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
         String plaintext = "Hello world";
         String cipher = cryptoService.eccEncrypt(ecKey.getPubKeyPoint(), plaintext);
@@ -154,12 +154,15 @@ public class DataSetController {
 
     @GetMapping("/testPRE")
     public void testPRE() throws Exception {
-        ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
+        blockchainService.login("0x6a2fb5e3bf37f0c3d90db4713f7ad4a3b2c24111", "Innov@teD@ily1");
+        ECKey ecKey1 = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
         String plaintext = "Hello world";
-        byte[] capsule = cryptoService.encryptKeyGen(ecKey.getPubKeyPoint());
-        String cipher = cryptoService.encrypt(capsule, ecKey.getPrivKey(), plaintext);
-        //byte[] reCapsule = cryptoService.reEncrypt(capsule, ecKey.getPrivKey(), kp.getPublicKey().getValue().getValue());
-        String result = cryptoService.decrypt(capsule, ecKey.getPrivKey(), cipher);
-        //String result1 = cryptoService.decrypt(reCapsule, ecKey1.getPrivKey(), cipher);
+        blockchainService.login("0x38a5d4e63bbac1af0eba0d99ef927359ab8d7293", "Innov@teD@ily1");
+        ECKey ecKey2 = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
+        byte[] capsule = cryptoService.encryptKeyGen(ecKey1.getPubKeyPoint());
+        String cipher = cryptoService.encrypt(capsule, ecKey1.getPrivKey(), plaintext);
+        byte[] reCapsule = cryptoService.reEncrypt(capsule, ecKey1.getPrivKey(), ecKey2.getPubKeyPoint());
+        String result = cryptoService.decrypt(capsule, ecKey1.getPrivKey(), cipher);
+        String result1 = cryptoService.decrypt(reCapsule, ecKey2.getPrivKey(), cipher);
     }
 }

@@ -1,7 +1,7 @@
 package org.txhsl.ppml.api.service.crypto;
 
-import org.bouncycastle.math.ec.ECCurve;
-import org.bouncycastle.math.ec.ECPoint;
+import org.spongycastle.math.ec.ECCurve;
+import org.spongycastle.math.ec.ECPoint;
 
 public class GroupElement
 {
