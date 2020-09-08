@@ -1,5 +1,6 @@
 package org.txhsl.ppml.api.service;
 
+import io.ipfs.multibase.Base58;
 import org.ethereum.ConcatKDFBytesGenerator;
 import org.ethereum.crypto.ECKey;
 import org.ethereum.crypto.EthereumIESEngine;
@@ -19,7 +20,6 @@ import org.spongycastle.crypto.macs.HMac;
 import org.spongycastle.crypto.modes.SICBlockCipher;
 import org.spongycastle.crypto.params.*;
 import org.spongycastle.math.ec.ECPoint;
-import org.spongycastle.util.encoders.Hex;
 import org.springframework.stereotype.Service;
 import org.txhsl.ppml.api.service.crypto.*;
 
@@ -49,29 +49,30 @@ public class CryptoService {
 
     public byte[] encryptKeyGen(ECPoint toPub) throws NoSuchAlgorithmException {
         List<Object> cp = Proxy.encapsulate(new PublicKey(new GroupElement(new Curve("secp256k1"), toPub)));
-        LOGGER.info("Symmetric key generated: " + Hex.toHexString(((Scalar) cp.get(1)).toBytes()));
+        LOGGER.info("Symmetric key generated: " + Base58.encode(((Scalar) cp.get(1)).toBytes()));
         return ((Capsule) cp.get(0)).toBytes();
     }
 
-    public String encrypt(byte[] capsule, BigInteger prv, String plaintext) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
+    public byte[] encrypt(byte[] capsule, BigInteger prv, byte[] plaintext) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
         Scalar symmetricKey = Proxy.decapsulate(Capsule.fromBytes(capsule), PrivateKey.fromBytes(prv.toByteArray()));
-        LOGGER.info("Symmetric key decrypted: " + Hex.toHexString(symmetricKey.toBytes()));
-        return aesEncrypt(Hex.toHexString(symmetricKey.getValue().toByteArray()), plaintext);
+        LOGGER.info("Symmetric key decrypted: " + Base58.encode(symmetricKey.toBytes()));
+        return aesEncrypt(symmetricKey.getValue().toByteArray(), plaintext);
     }
 
     public byte[] reEncrypt(byte[] capsule, BigInteger prv, ECPoint pub) throws NoSuchAlgorithmException {
         ReEncryptionKey rk = Proxy.generateReEncryptionKey(PrivateKey.fromBytes(prv.toByteArray()), new PublicKey(new GroupElement(new Curve("secp256k1"), pub)));
+        LOGGER.info("ReEncryption key generated: " + Base58.encode(rk.toBytes()));
         return Proxy.reEncryptCapsule(Capsule.fromBytes(capsule), rk).toBytes();
     }
 
-    public String decrypt(byte[] reCapsule, BigInteger prv, String cipher) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
+    public byte[] decrypt(byte[] reCapsule, BigInteger prv, byte[] cipher) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
         Scalar reSymmetricKey = Proxy.decapsulate(Capsule.fromBytes(reCapsule), PrivateKey.fromBytes(prv.toByteArray()));
-        LOGGER.info("Symmetric key decrypted: " + Hex.toHexString(reSymmetricKey.toBytes()));
-        return aesDecrypt(Hex.toHexString(reSymmetricKey.getValue().toByteArray()), cipher);
+        LOGGER.info("Symmetric key decrypted: " + Base58.encode(reSymmetricKey.toBytes()));
+        return aesDecrypt(reSymmetricKey.getValue().toByteArray(), cipher);
     }
 
-    public String eccDecrypt(BigInteger prv, String cipher) throws InvalidCipherTextException, IOException {
-        ByteArrayInputStream is = new ByteArrayInputStream(Hex.decode(cipher));
+    public byte[] eccDecrypt(BigInteger prv, byte[] cipher) throws InvalidCipherTextException, IOException {
+        ByteArrayInputStream is = new ByteArrayInputStream(cipher);
         byte[] ephemBytes = new byte[2*((curve.getCurve().getFieldSize()+7)/8) + 1];
         is.read(ephemBytes);
         ECPoint ephem = curve.getCurve().decodePoint(ephemBytes);
@@ -83,13 +84,12 @@ public class CryptoService {
         EthereumIESEngine iesEngine = makeIESEngine(false, ephem, prv, IV);
         byte[] plaintext = iesEngine.processBlock(cipherBody, 0, cipherBody.length);
 
-        LOGGER.info("Cipher " + cipher + " decrypted, plaintext: " + new String(plaintext));
+        LOGGER.info("Cipher " + Base58.encode(cipher) + " decrypted, plaintext: " + new String(plaintext));
 
-        return new String(plaintext);
+        return plaintext;
     }
 
-    public String eccEncrypt(ECPoint toPub, String plaintext) throws InvalidCipherTextException, IOException {
-        byte[] raw = plaintext.getBytes();
+    public byte[] eccEncrypt(ECPoint toPub, byte[] plaintext) throws InvalidCipherTextException, IOException {
         ECKeyPairGenerator eGen = new ECKeyPairGenerator();
         SecureRandom random = new SecureRandom();
         KeyGenerationParameters gParam = new ECKeyGenerationParameters(curve, random);
@@ -112,17 +112,15 @@ public class CryptoService {
         ECKeyPairGenerator gen = new ECKeyPairGenerator();
         gen.init(new ECKeyGenerationParameters(ECKey.CURVE, random));
 
-        byte[] cipher = iesEngine.processBlock(raw, 0, raw.length);
+        byte[] cipher = iesEngine.processBlock(plaintext, 0, plaintext.length);
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         bos.write(pub.getEncoded(false));
         bos.write(IV);
         bos.write(cipher);
 
-        String result = Hex.toHexString(bos.toByteArray());
+        LOGGER.info("Plaintext " + new String(plaintext) + " encrypted, cipher: " + Base58.encode(bos.toByteArray()));
 
-        LOGGER.info("Plaintext " + plaintext + " encrypted, cipher: " + result);
-
-        return result;
+        return bos.toByteArray();
     }
 
     private EthereumIESEngine makeIESEngine(boolean isEncrypt, ECPoint pub, BigInteger prv, byte[] IV) {
@@ -145,35 +143,35 @@ public class CryptoService {
         return iesEngine;
     }
 
-    public String aesKeyGen() throws NoSuchAlgorithmException {
+    public byte[] aesKeyGen() throws NoSuchAlgorithmException {
         KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
         keyGenerator.init(256);
         SecretKey key = keyGenerator.generateKey();
 
-        LOGGER.info("AESKey generated: " + Hex.toHexString(key.getEncoded()));
+        LOGGER.info("AESKey generated: " + Base58.encode(key.getEncoded()));
 
-        return Hex.toHexString(key.getEncoded());
+        return key.getEncoded();
     }
 
-    public String aesEncrypt(String key, String plaintext) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
-        SecretKey secretKey = new SecretKeySpec(Hex.decode(key), "AES");
+    public byte[] aesEncrypt(byte[] key, byte[] plaintext) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
         Cipher c = Cipher.getInstance("AES");
         c.init(Cipher.ENCRYPT_MODE, secretKey);
-        byte[] cipher = c.doFinal(plaintext.getBytes());
+        byte[] cipher = c.doFinal(plaintext);
 
-        LOGGER.info("Plaintext " + plaintext + " encrypted, cipher: " + Hex.toHexString(cipher));
+        LOGGER.info("Plaintext " + new String(plaintext) + " encrypted, cipher: " + Base58.encode(cipher));
 
-        return Hex.toHexString(cipher);
+        return cipher;
     }
 
-    public String aesDecrypt(String key, String cipher) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
-        SecretKey secretKey = new SecretKeySpec(Hex.decode(key), "AES");
+    public byte[] aesDecrypt(byte[] key, byte[] cipher) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
         Cipher c = Cipher.getInstance("AES");
         c.init(Cipher.DECRYPT_MODE, secretKey);
-        byte[] plaintext = c.doFinal(Hex.decode(cipher));
+        byte[] plaintext = c.doFinal(cipher);
 
-        LOGGER.info("Cipher " + cipher + " decrypted, plaintext: " + new String(plaintext));
+        LOGGER.info("Cipher " + Base58.encode(cipher) + " decrypted, plaintext: " + new String(plaintext));
 
-        return new String(plaintext);
+        return plaintext;
     }
 }

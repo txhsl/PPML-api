@@ -1,5 +1,7 @@
 package org.txhsl.ppml.api.controller;
 
+import io.ipfs.multibase.Base58;
+import org.ethereum.crypto.ECKey;
 import org.springframework.web.bind.annotation.*;
 import org.txhsl.ppml.api.model.UserRequest;
 import org.txhsl.ppml.api.service.BlockchainService;
@@ -27,5 +29,11 @@ public class UserController {
     @GetMapping("/balance")
     public double getBalance() throws IOException {
         return blockchainService.getBalance();
+    }
+
+    @GetMapping("/pubKey")
+    public String getPubKey() {
+        ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
+        return Base58.encode(ecKey.getPubKeyPoint().getEncoded());
     }
 }

@@ -139,6 +139,7 @@ public class BlockchainService {
     }
 
     public String getReEncryptedKey(String key) throws Exception {
-        return this.dataContract.getReEncryptedKey(new Utf8String(key)).send().getValue();
+        String rekey = this.dataContract.getReEncryptedKey(new Address(this.credentials.getAddress()), new Utf8String(key)).send().getValue();
+        return rekey;
     }
 }
