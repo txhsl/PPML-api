@@ -2,7 +2,6 @@ package org.txhsl.ppml.api.controller;
 
 import io.ipfs.multibase.Base58;
 import org.ethereum.crypto.ECKey;
-import org.spongycastle.math.ec.ECPoint;
 import org.spongycastle.util.encoders.Hex;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -11,7 +10,8 @@ import org.txhsl.ppml.api.model.Volume;
 import org.txhsl.ppml.api.service.BlockchainService;
 import org.txhsl.ppml.api.service.CryptoService;
 import org.txhsl.ppml.api.service.IPFSService;
-import org.web3j.crypto.Keys;
+import org.txhsl.ppml.api.service.crypto.Capsule;
+import org.txhsl.ppml.api.service.crypto.ReEncryptionKey;
 import org.web3j.utils.Numeric;
 
 import java.io.IOException;
@@ -38,7 +38,7 @@ public class DataSetController {
 
         byte[] encryptedKey = cryptoService.encryptKeyGen(ecKey.getPubKeyPoint());
 
-        blockchainService.createDataSet(Base58.encode(encryptedKey));
+        blockchainService.createDataSet(Base58.encode(encryptedKey), Capsule.fromBytes(encryptedKey));
 
         request.setEncryptedKey(Base58.encode(encryptedKey));
         request.setCompleted(true);
@@ -69,9 +69,9 @@ public class DataSetController {
         String toPub = request.getTo();
 
         ECKey to = ECKey.fromPublicOnly(Base58.decode(toPub));
-        byte[] reEncryptedKey = cryptoService.reEncrypt(Base58.decode(encryptedKey), ecKey.getPrivKey(), to.getPubKeyPoint());
+        byte[] reEncryptedKey = cryptoService.getReKey(Base58.decode(encryptedKey), ecKey.getPrivKey(), to.getPubKeyPoint());
         String toAddr = Numeric.prependHexPrefix(Hex.toHexString(to.getAddress()));
-        blockchainService.shareKey(encryptedKey, toAddr, Base58.encode(reEncryptedKey));
+        blockchainService.shareKey(encryptedKey, toAddr, ReEncryptionKey.fromBytes(reEncryptedKey));
 
         request.setReEncryptedKey(Base58.encode(reEncryptedKey));
         request.setCompleted(true);
@@ -84,7 +84,7 @@ public class DataSetController {
         String encryptedKey = request.getEncryptedKey();
 
         String reKey = blockchainService.getOwner(encryptedKey).equals(blockchainService.getCredentials().getAddress()) ?
-                encryptedKey : blockchainService.getReEncryptedKey(encryptedKey);
+                encryptedKey : Base58.encode(blockchainService.getReEncryptedKey(encryptedKey).toBytes());
 
         request.setReEncryptedKey(reKey);
         request.setCompleted(true);

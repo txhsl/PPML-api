@@ -8,6 +8,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.FileCopyUtils;
 import org.txhsl.ppml.api.contract.DataSets_sol_DataSets;
+import org.txhsl.ppml.api.service.crypto.*;
 import org.web3j.abi.datatypes.Address;
 import org.web3j.abi.datatypes.Utf8String;
 import org.web3j.abi.datatypes.generated.Uint256;
@@ -22,6 +23,7 @@ import org.web3j.utils.Convert;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.util.List;
 
 import static org.web3j.tx.gas.DefaultGasProvider.GAS_LIMIT;
 import static org.web3j.tx.gas.DefaultGasProvider.GAS_PRICE;
@@ -100,8 +102,10 @@ public class BlockchainService {
     }
 
     // DataSetController
-    public TransactionReceipt createDataSet(String key) throws Exception {
-        TransactionReceipt receipt = this.dataContract.createDataSet(new Utf8String(key)).send();
+    public TransactionReceipt createDataSet(String key, Capsule capsule) throws Exception {
+        TransactionReceipt receipt = this.dataContract.createDataSet(new Utf8String(key), new Uint256(capsule.getE().getValue().getXCoord().toBigInteger()),
+                new Uint256(capsule.getE().getValue().getYCoord().toBigInteger()), new Uint256(capsule.getV().getValue().getXCoord().toBigInteger()),
+                new Uint256(capsule.getV().getValue().getYCoord().toBigInteger()), new Uint256(capsule.getS().getValue())).send();
         LOGGER.info("DataSet created: " + key);
         return receipt;
     }
@@ -112,8 +116,9 @@ public class BlockchainService {
         return receipt;
     }
 
-    public TransactionReceipt shareKey(String key, String to, String reEncryptedKey) throws Exception {
-        TransactionReceipt receipt = this.dataContract.shareKey(new Utf8String(key), new Address(to), new Utf8String(reEncryptedKey)).send();
+    public TransactionReceipt shareKey(String key, String to, ReEncryptionKey reEncryptedKey) throws Exception {
+        TransactionReceipt receipt = this.dataContract.shareKey(new Utf8String(key), new Address(to), new Uint256(reEncryptedKey.getReKey().getValue()),
+                new Uint256(reEncryptedKey.getInternalPublicKey().getValue().getXCoord().toBigInteger()), new Uint256(reEncryptedKey.getInternalPublicKey().getValue().getYCoord().toBigInteger())).send();
         LOGGER.info("Key " + key + " shared, to " + to);
         return receipt;
     }
@@ -138,8 +143,11 @@ public class BlockchainService {
         return this.dataContract.getVolumeHash(new Utf8String(key), new Uint256(volume)).send().getValue();
     }
 
-    public String getReEncryptedKey(String key) throws Exception {
-        String rekey = this.dataContract.getReEncryptedKey(new Address(this.credentials.getAddress()), new Utf8String(key)).send().getValue();
-        return rekey;
+    public Capsule getReEncryptedKey(String key) throws Exception {
+        List<Uint256> reCapsule = this.dataContract.getReEncryptedKey(new Address(this.credentials.getAddress()), new Utf8String(key)).send().getValue();
+        Curve crv = new Curve("secp256k1");
+        return new Capsule(new GroupElement(crv, crv.getCurve().createPoint(reCapsule.get(0).getValue(), reCapsule.get(1).getValue())),
+                new GroupElement(crv, crv.getCurve().createPoint(reCapsule.get(2).getValue(), reCapsule.get(3).getValue())),
+                new Scalar(reCapsule.get(4).getValue(), crv), new GroupElement(crv, crv.getCurve().createPoint(reCapsule.get(5).getValue(), reCapsule.get(6).getValue())), true);
     }
 }

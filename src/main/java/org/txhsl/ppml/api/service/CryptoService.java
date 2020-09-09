@@ -65,6 +65,10 @@ public class CryptoService {
         return Proxy.reEncryptCapsule(Capsule.fromBytes(capsule), rk).toBytes();
     }
 
+    public byte[] getReKey(byte[] capsule, BigInteger prv, ECPoint pub) throws NoSuchAlgorithmException {
+        return Proxy.generateReEncryptionKey(PrivateKey.fromBytes(prv.toByteArray()), new PublicKey(new GroupElement(new Curve("secp256k1"), pub))).toBytes();
+    }
+
     public byte[] decrypt(byte[] reCapsule, BigInteger prv, byte[] cipher) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
         Scalar reSymmetricKey = Proxy.decapsulate(Capsule.fromBytes(reCapsule), PrivateKey.fromBytes(prv.toByteArray()));
         LOGGER.info("Symmetric key decrypted: " + Base58.encode(reSymmetricKey.toBytes()));
