@@ -79,8 +79,8 @@ public class DataSetController {
         return request;
     }
 
-    @PostMapping("/getReKey")
-    public DataSetRequest getReKey(@RequestBody DataSetRequest request) throws Exception {
+    @PostMapping("/getReEncryptedKey")
+    public DataSetRequest getReEncryptedKey(@RequestBody DataSetRequest request) throws Exception {
         String encryptedKey = request.getEncryptedKey();
 
         String reKey = blockchainService.getOwner(encryptedKey).equals(blockchainService.getCredentials().getAddress()) ?
