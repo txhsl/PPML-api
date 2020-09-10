@@ -36,14 +36,21 @@ public class DataSetController {
     public DataSetRequest create(@RequestBody DataSetRequest request) throws Exception {
         ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
 
-        byte[] encryptedKey = cryptoService.encryptKeyGen(ecKey.getPubKeyPoint());
+        int count = 0;
+        while(count < 10) {
+            try {
+                byte[] encryptedKey = cryptoService.encryptKeyGen(ecKey.getPubKeyPoint());
+                blockchainService.createDataSet(Base58.encode(encryptedKey), Capsule.fromBytes(encryptedKey));
 
-        blockchainService.createDataSet(Base58.encode(encryptedKey), Capsule.fromBytes(encryptedKey));
+                request.setEncryptedKey(Base58.encode(encryptedKey));
+                request.setCompleted(true);
 
-        request.setEncryptedKey(Base58.encode(encryptedKey));
-        request.setCompleted(true);
-
-        return request;
+                return request;
+            } catch (UnsupportedOperationException e) {
+                count++;
+            }
+        }
+        throw new UnsupportedOperationException();
     }
 
     @PostMapping("/add")
