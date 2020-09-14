@@ -1,7 +1,5 @@
 package org.txhsl.ppml.api.service.crypto;
 
-import org.ethereum.crypto.HashUtil;
-
 import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -37,9 +35,11 @@ public class ProxyUtils
          return new Scalar(new BigInteger(dg), new Curve("secp256k1"));
     }
 
-    public static Scalar SHA3(GroupElement obj)
+    public static Scalar SHA3(GroupElement obj) throws NoSuchAlgorithmException
     {
-        byte[] dg = HashUtil.sha3(obj.toBytes());
+        MessageDigest md = MessageDigest.getInstance("SHA3-256");
+        md.update(obj.toBytes());
+        byte[] dg = md.digest();
 
         return new Scalar(new BigInteger(dg), new Curve("secp256k1"));
     }

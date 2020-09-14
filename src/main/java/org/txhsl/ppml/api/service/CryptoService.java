@@ -60,6 +60,14 @@ public class CryptoService {
         return aesEncrypt(key, plaintext);
     }
 
+    @Deprecated
+    public byte[] encryptHashB(byte[] capsule, BigInteger prv, byte[] plaintext) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
+        List<Scalar> symmetricKeys = Proxy.decapsulate(Capsule.fromBytes(capsule), PrivateKey.fromBytes(prv.toByteArray()));
+        byte[] key = symmetricKeys.get(1).toBytes();
+        LOGGER.info("Symmetric key B decrypted: " + Base58.encode(key));
+        return aesEncrypt(key, plaintext);
+    }
+
     public String encryptFile(byte[] capsule, BigInteger prv, File raw) throws Exception {
         List<Scalar> symmetricKeys = Proxy.decapsulate(Capsule.fromBytes(capsule), PrivateKey.fromBytes(prv.toByteArray()));
         byte[] key = symmetricKeys.get(1).toBytes();
@@ -82,6 +90,14 @@ public class CryptoService {
         List<Scalar> reSymmetricKeys = Proxy.decapsulate(Capsule.fromBytes(reCapsule), PrivateKey.fromBytes(prv.toByteArray()));
         byte[] key = reSymmetricKeys.get(0).toBytes();
         LOGGER.info("Symmetric key A decrypted: " + Base58.encode(key));
+        return aesDecrypt(key, cipher);
+    }
+
+    @Deprecated
+    public byte[] decryptHashB(byte[] reCapsule, BigInteger prv, byte[] cipher) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
+        List<Scalar> reSymmetricKeys = Proxy.decapsulate(Capsule.fromBytes(reCapsule), PrivateKey.fromBytes(prv.toByteArray()));
+        byte[] key = reSymmetricKeys.get(1).toBytes();
+        LOGGER.info("Symmetric key B decrypted: " + Base58.encode(key));
         return aesDecrypt(key, cipher);
     }
 
@@ -199,6 +215,7 @@ public class CryptoService {
 
     public String aesEncFile(byte[] key, File raw) throws Exception {
         FileInputStream in = new FileInputStream(raw);
+        LOGGER.info("File encryption key: " + Base58.encode(key));
 
         byte[] salt = new byte[8];
         SecureRandom srand = new SecureRandom();
@@ -241,6 +258,7 @@ public class CryptoService {
         RandomAccessFile raf = new RandomAccessFile(encrypted, "rw");
         byte[] salt = new byte[8];
         byte[] iv = new byte[16];
+        LOGGER.info("File decryption key: " + Base58.encode(key));
 
         raf.seek(encrypted.length() - (salt.length + iv.length));
         raf.read(salt, 0, salt.length);

@@ -158,7 +158,7 @@ public class DataSetController {
     @PostMapping("/download")
     public DataSetRequest download(@RequestBody DataSetRequest request) throws Exception {
         ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
-        String reEncryptedKey = this.current;
+        String reEncryptedKey = request.getReEncryptedKey();
 
         File cipher = ipfsService.download(request.getHash());
         String decPath = cryptoService.decryptFile(Base58.decode(reEncryptedKey), ecKey.getPrivKey(), cipher, request.getName());
@@ -190,18 +190,21 @@ public class DataSetController {
     public void testPRE() throws Exception {
         blockchainService.login("0x6a2fb5e3bf37f0c3d90db4713f7ad4a3b2c24111", "Innov@teD@ily1");
         ECKey ecKey1 = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
-        String plaintext1 = "Hello world";
+        String plaintext = "Hello world";
         blockchainService.login("0x38a5d4e63bbac1af0eba0d99ef927359ab8d7293", "Innov@teD@ily1");
         ECKey ecKey2 = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
 
         byte[] capsule = cryptoService.encryptKeyGen(ecKey1.getPubKeyPoint());
 
-        byte[] cipher1 = cryptoService.encryptHash(capsule, ecKey1.getPrivKey(), plaintext1.getBytes());
-
+        byte[] cipher1 = cryptoService.encryptHash(capsule, ecKey1.getPrivKey(), plaintext.getBytes());
+        byte[] cipher2 = cryptoService.encryptHashB(capsule, ecKey1.getPrivKey(), plaintext.getBytes());
         byte[] reCapsule = cryptoService.reEncrypt(capsule, ecKey1.getPrivKey(), ecKey2.getPubKeyPoint());
 
-        String result1 = new String(cryptoService.decryptHash(capsule, ecKey1.getPrivKey(), cipher1));
-        String result2 = new String(cryptoService.decryptHash(reCapsule, ecKey2.getPrivKey(), cipher1));
+        String result11 = new String(cryptoService.decryptHash(capsule, ecKey1.getPrivKey(), cipher1));
+        String result12 = new String(cryptoService.decryptHash(reCapsule, ecKey2.getPrivKey(), cipher1));
+
+        String result21 = new String(cryptoService.decryptHashB(capsule, ecKey1.getPrivKey(), cipher2));
+        String result22 = new String(cryptoService.decryptHashB(reCapsule, ecKey2.getPrivKey(), cipher2));
     }
 
     @GetMapping("/testSHA")
