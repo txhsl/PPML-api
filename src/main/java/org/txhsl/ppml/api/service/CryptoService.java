@@ -24,11 +24,11 @@ import org.springframework.stereotype.Service;
 import org.txhsl.ppml.api.service.crypto.*;
 
 import javax.crypto.*;
+import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.math.BigInteger;
+import java.security.AlgorithmParameters;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -53,10 +53,19 @@ public class CryptoService {
         return ((Capsule) cp.get(0)).toBytes();
     }
 
-    public byte[] encrypt(byte[] capsule, BigInteger prv, byte[] plaintext) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
-        Scalar symmetricKey = Proxy.decapsulate(Capsule.fromBytes(capsule), PrivateKey.fromBytes(prv.toByteArray()));
-        LOGGER.info("Symmetric key decrypted: " + Base58.encode(symmetricKey.toBytes()));
-        return aesEncrypt(symmetricKey.getValue().toByteArray(), plaintext);
+    public byte[] encryptHash(byte[] capsule, BigInteger prv, byte[] plaintext) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
+        List<Scalar> symmetricKeys = Proxy.decapsulate(Capsule.fromBytes(capsule), PrivateKey.fromBytes(prv.toByteArray()));
+        byte[] key = symmetricKeys.get(0).toBytes();
+        LOGGER.info("Symmetric key A decrypted: " + Base58.encode(key));
+        return aesEncrypt(key, plaintext);
+    }
+
+    public String encryptFile(byte[] capsule, BigInteger prv, File raw) throws Exception {
+        List<Scalar> symmetricKeys = Proxy.decapsulate(Capsule.fromBytes(capsule), PrivateKey.fromBytes(prv.toByteArray()));
+        byte[] key = symmetricKeys.get(1).toBytes();
+        LOGGER.info("Symmetric key B decrypted: " + Base58.encode(key));
+
+        return aesEncFile(key, raw);
     }
 
     public byte[] reEncrypt(byte[] capsule, BigInteger prv, ECPoint pub) throws NoSuchAlgorithmException {
@@ -65,14 +74,23 @@ public class CryptoService {
         return Proxy.reEncryptCapsule(Capsule.fromBytes(capsule), rk).toBytes();
     }
 
-    public byte[] getReKey(byte[] capsule, BigInteger prv, ECPoint pub) throws NoSuchAlgorithmException {
+    public byte[] getReKey(BigInteger prv, ECPoint pub) throws NoSuchAlgorithmException {
         return Proxy.generateReEncryptionKey(PrivateKey.fromBytes(prv.toByteArray()), new PublicKey(new GroupElement(new Curve("secp256k1"), pub))).toBytes();
     }
 
-    public byte[] decrypt(byte[] reCapsule, BigInteger prv, byte[] cipher) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
-        Scalar reSymmetricKey = Proxy.decapsulate(Capsule.fromBytes(reCapsule), PrivateKey.fromBytes(prv.toByteArray()));
-        LOGGER.info("Symmetric key decrypted: " + Base58.encode(reSymmetricKey.toBytes()));
-        return aesDecrypt(reSymmetricKey.getValue().toByteArray(), cipher);
+    public byte[] decryptHash(byte[] reCapsule, BigInteger prv, byte[] cipher) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
+        List<Scalar> reSymmetricKeys = Proxy.decapsulate(Capsule.fromBytes(reCapsule), PrivateKey.fromBytes(prv.toByteArray()));
+        byte[] key = reSymmetricKeys.get(0).toBytes();
+        LOGGER.info("Symmetric key A decrypted: " + Base58.encode(key));
+        return aesDecrypt(key, cipher);
+    }
+
+    public String decryptFile(byte[] reCapsule, BigInteger prv, File cipher, String name) throws Exception {
+        List<Scalar> reSymmetricKeys = Proxy.decapsulate(Capsule.fromBytes(reCapsule), PrivateKey.fromBytes(prv.toByteArray()));
+        byte[] key = reSymmetricKeys.get(1).toBytes();
+        LOGGER.info("Symmetric key B decrypted: " + Base58.encode(key));
+
+        return aesDecFile(key, cipher, name);
     }
 
     public byte[] eccDecrypt(BigInteger prv, byte[] cipher) throws InvalidCipherTextException, IOException {
@@ -177,5 +195,97 @@ public class CryptoService {
         LOGGER.info("Cipher " + Base58.encode(cipher) + " decrypted, plaintext: " + new String(plaintext));
 
         return plaintext;
+    }
+
+    public String aesEncFile(byte[] key, File raw) throws Exception {
+        FileInputStream in = new FileInputStream(raw);
+
+        byte[] salt = new byte[8];
+        SecureRandom srand = new SecureRandom();
+        srand.nextBytes(salt);
+
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey);
+        AlgorithmParameters params = cipher.getParameters();
+
+        byte[] iv = params.getParameterSpec(IvParameterSpec.class).getIV();
+
+        File encrypted = new File(raw.getAbsolutePath() + ".fenc");
+        FileOutputStream out = new FileOutputStream(encrypted);
+
+        byte[] input = new byte[64];
+        int bytesRead;
+        while ((bytesRead = in.read(input)) != -1) {
+            byte[] output = cipher.update(input, 0, bytesRead);
+            if (output != null) {
+                out.write(output);
+            }
+        }
+
+        byte[] output = cipher.doFinal();
+        if (output != null) {
+            out.write(output);
+        }
+
+        in.close();
+        out.flush();
+        out.write(salt);
+        out.write(iv);
+        out.close();
+
+        return encrypted.getAbsolutePath();
+    }
+
+    public String aesDecFile(byte[] key, File encrypted, String name) throws Exception {
+        RandomAccessFile raf = new RandomAccessFile(encrypted, "rw");
+        byte[] salt = new byte[8];
+        byte[] iv = new byte[16];
+
+        raf.seek(encrypted.length() - (salt.length + iv.length));
+        raf.read(salt, 0, salt.length);
+        raf.seek(encrypted.length() - (iv.length));
+        raf.read(iv, 0, iv.length);
+        raf.setLength(encrypted.length() - (salt.length + iv.length));
+
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+        cipher.init(Cipher.DECRYPT_MODE, secretKey, new IvParameterSpec(iv));
+
+        FileInputStream in = new FileInputStream(encrypted);
+        File plain = new File(encrypted.getParent() + "/" + name);
+        FileOutputStream out = new FileOutputStream(plain);
+
+        byte[] b = new byte[64];
+        int read;
+        while ((read = in.read(b)) != -1) {
+            byte[] output = cipher.update(b, 0, read);
+            if (output != null) {
+                out.write(output);
+            }
+        }
+
+        try {
+            byte[] output = cipher.doFinal();
+            if (output != null)
+                out.write(output);
+        } catch (Exception e) {
+            raf.seek(encrypted.length());
+            raf.write(salt);
+            raf.seek(encrypted.length());
+            raf.write(iv);
+            raf.close();
+        }
+
+        raf.seek(encrypted.length());
+        raf.write(salt);
+        raf.seek(encrypted.length());
+        raf.write(iv);
+        raf.close();
+        in.close();
+        out.flush();
+        out.close();
+
+        return plain.getAbsolutePath();
     }
 }

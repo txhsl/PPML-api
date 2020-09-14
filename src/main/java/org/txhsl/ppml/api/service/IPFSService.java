@@ -38,10 +38,10 @@ public class IPFSService {
         }
     }
 
-    public String save(MultipartFile multipartFile, String fileName) throws IOException {
+    public File save(MultipartFile multipartFile, String fileName) throws IOException {
         File file = new File(cacheFolder.getAbsolutePath() + '\\' + fileName);
         multipartFile.transferTo(file);
-        return file.getAbsolutePath();
+        return file;
     }
 
     public String upload(String path) throws IOException {

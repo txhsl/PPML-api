@@ -10,11 +10,11 @@ import org.txhsl.ppml.api.model.Volume;
 import org.txhsl.ppml.api.service.BlockchainService;
 import org.txhsl.ppml.api.service.CryptoService;
 import org.txhsl.ppml.api.service.IPFSService;
-import org.txhsl.ppml.api.service.crypto.Capsule;
-import org.txhsl.ppml.api.service.crypto.ReEncryptionKey;
+import org.txhsl.ppml.api.service.crypto.*;
 import org.web3j.utils.Numeric;
 
-import java.io.IOException;
+import java.io.File;
+import java.math.BigInteger;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -25,6 +25,8 @@ public class DataSetController {
     private final BlockchainService blockchainService;
     private final IPFSService ipfsService;
     private final CryptoService cryptoService;
+
+    private String current = "";
 
     public DataSetController(BlockchainService blockchainService, IPFSService ipfsService, CryptoService cryptoService) {
         this.blockchainService = blockchainService;
@@ -59,7 +61,7 @@ public class DataSetController {
         String encryptedKey = request.getEncryptedKey();
         String hash = request.getHash();
 
-        byte[] encryptedHash = cryptoService.encrypt(Base58.decode(encryptedKey), ecKey.getPrivKey(), hash.getBytes());
+        byte[] encryptedHash = cryptoService.encryptHash(Base58.decode(encryptedKey), ecKey.getPrivKey(), hash.getBytes());
 
         blockchainService.addVolume(encryptedKey, request.getName(), Base58.encode(encryptedHash));
 
@@ -76,11 +78,11 @@ public class DataSetController {
         String toPub = request.getTo();
 
         ECKey to = ECKey.fromPublicOnly(Base58.decode(toPub));
-        byte[] reEncryptedKey = cryptoService.getReKey(Base58.decode(encryptedKey), ecKey.getPrivKey(), to.getPubKeyPoint());
+        byte[] reEncryptKey = cryptoService.getReKey(ecKey.getPrivKey(), to.getPubKeyPoint());
         String toAddr = Numeric.prependHexPrefix(Hex.toHexString(to.getAddress()));
-        blockchainService.shareKey(encryptedKey, toAddr, ReEncryptionKey.fromBytes(reEncryptedKey));
+        blockchainService.shareKey(encryptedKey, toAddr, ReEncryptionKey.fromBytes(reEncryptKey));
 
-        request.setReEncryptedKey(Base58.encode(reEncryptedKey));
+        request.setReEncryptedKey(Base58.encode(reEncryptKey));
         request.setCompleted(true);
 
         return request;
@@ -101,10 +103,10 @@ public class DataSetController {
     @PostMapping("/decryptHash")
     public DataSetRequest decryptHash(@RequestBody DataSetRequest request) throws Exception {
         ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
-        String requestEncryptedKey = request.getReEncryptedKey();
+        String reEncryptedKey = request.getReEncryptedKey();
         String encryptedHash = request.getEncryptedHash();
 
-        byte[] hash = cryptoService.decrypt(Base58.decode(requestEncryptedKey), ecKey.getPrivKey(), Base58.decode(encryptedHash));
+        byte[] hash = cryptoService.decryptHash(Base58.decode(reEncryptedKey), ecKey.getPrivKey(), Base58.decode(encryptedHash));
 
         request.setHash(new String(hash));
         request.setCompleted(true);
@@ -114,6 +116,7 @@ public class DataSetController {
     @PostMapping("/get")
     public DataSetRequest get(@RequestBody DataSetRequest request) throws Exception {
         String encryptedKey = request.getEncryptedKey();
+        this.current = encryptedKey;
         int amount = blockchainService.getAmount(encryptedKey);
 
         Volume[] volumes = new Volume[amount];
@@ -135,9 +138,14 @@ public class DataSetController {
     }
 
     @PostMapping("/upload")
-    public DataSetRequest upload(@RequestParam("file") MultipartFile multipartFile) throws IOException {
-        String path = ipfsService.save(multipartFile, multipartFile.getOriginalFilename());
-        String hash = ipfsService.upload(path);
+    public DataSetRequest upload(@RequestParam("file") MultipartFile multipartFile) throws Exception {
+        ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
+        String encryptedKey = this.current;
+
+        File raw = ipfsService.save(multipartFile, multipartFile.getOriginalFilename());
+        String encPath = cryptoService.encryptFile(Base58.decode(encryptedKey), ecKey.getPrivKey(), raw);
+
+        String hash = ipfsService.upload(encPath);
 
         DataSetRequest request = new DataSetRequest();
         request.setHash(hash);
@@ -148,10 +156,14 @@ public class DataSetController {
     }
 
     @PostMapping("/download")
-    public DataSetRequest download(@RequestBody DataSetRequest request) throws IOException {
-        String path = ipfsService.download(request.getHash()).getAbsolutePath();
+    public DataSetRequest download(@RequestBody DataSetRequest request) throws Exception {
+        ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
+        String reEncryptedKey = this.current;
 
-        request.setPath(path);
+        File cipher = ipfsService.download(request.getHash());
+        String decPath = cryptoService.decryptFile(Base58.decode(reEncryptedKey), ecKey.getPrivKey(), cipher, request.getName());
+
+        request.setPath(decPath);
         request.setCompleted(true);
 
         return request;
@@ -178,13 +190,25 @@ public class DataSetController {
     public void testPRE() throws Exception {
         blockchainService.login("0x6a2fb5e3bf37f0c3d90db4713f7ad4a3b2c24111", "Innov@teD@ily1");
         ECKey ecKey1 = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
-        String plaintext = "Hello world";
+        String plaintext1 = "Hello world";
         blockchainService.login("0x38a5d4e63bbac1af0eba0d99ef927359ab8d7293", "Innov@teD@ily1");
         ECKey ecKey2 = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
+
         byte[] capsule = cryptoService.encryptKeyGen(ecKey1.getPubKeyPoint());
-        byte[] cipher = cryptoService.encrypt(capsule, ecKey1.getPrivKey(), plaintext.getBytes());
+
+        byte[] cipher1 = cryptoService.encryptHash(capsule, ecKey1.getPrivKey(), plaintext1.getBytes());
+
         byte[] reCapsule = cryptoService.reEncrypt(capsule, ecKey1.getPrivKey(), ecKey2.getPubKeyPoint());
-        String result = new String(cryptoService.decrypt(capsule, ecKey1.getPrivKey(), cipher));
-        String result1 = new String(cryptoService.decrypt(reCapsule, ecKey2.getPrivKey(), cipher));
+
+        String result1 = new String(cryptoService.decryptHash(capsule, ecKey1.getPrivKey(), cipher1));
+        String result2 = new String(cryptoService.decryptHash(reCapsule, ecKey2.getPrivKey(), cipher1));
+    }
+
+    @GetMapping("/testSHA")
+    public void testSHA() throws Exception {
+        Curve crv = new Curve("secp256k1");
+        GroupElement ge = new GroupElement(crv, crv.getCurve().createPoint(BigInteger.ONE,BigInteger.ONE));
+        System.out.println(Base58.encode(ProxyUtils.SHA256(ge).toBytes()));
+        System.out.println(Base58.encode(ProxyUtils.SHA3(ge).toBytes()));
     }
 }

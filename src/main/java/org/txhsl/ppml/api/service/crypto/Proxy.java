@@ -31,20 +31,22 @@ public class Proxy
         GroupElement pkPoint = publicKey.getValue();
 
         GroupElement pointSymmetric = pkPoint.mul(sk1.add(sk2));
-        Scalar symmetricKey = ProxyUtils.SHA256(pointSymmetric);
+        Scalar symmetricKeyA = ProxyUtils.SHA256(pointSymmetric);
+        Scalar symmetricKeyB = ProxyUtils.SHA3(pointSymmetric);
       
         Capsule capsule = new Capsule(pk1, pk2, partS, null, false);
 
-        return Arrays.asList(capsule, symmetricKey);
+        return Arrays.asList(capsule, symmetricKeyA, symmetricKeyB);
     }
 
-    public static Scalar decapsulateOriginal(Capsule capsule, PrivateKey privateKey) throws NoSuchAlgorithmException
+    public static List<Scalar> decapsulateOriginal(Capsule capsule, PrivateKey privateKey) throws NoSuchAlgorithmException
     {
         Scalar sk = privateKey.getValue();
         GroupElement s = capsule.getE().add(capsule.getV());
         GroupElement pointSymmetric = s.mul(sk);
-        Scalar symmetricKey = ProxyUtils.SHA256(pointSymmetric);
-        return symmetricKey;
+        Scalar symmetricKeyA = ProxyUtils.SHA256(pointSymmetric);
+        Scalar symmetricKeyB = ProxyUtils.SHA3(pointSymmetric);
+        return Arrays.asList(symmetricKeyA, symmetricKeyB);
     }
     
     public static ReEncryptionKey generateReEncryptionKey(PrivateKey privateKey, PublicKey publicKey) throws NoSuchAlgorithmException
@@ -78,7 +80,7 @@ public class Proxy
     }
 
     
-    public static Scalar decapsulateReEncrypted(Capsule capsule, PrivateKey privateKey) throws NoSuchAlgorithmException
+    public static List<Scalar> decapsulateReEncrypted(Capsule capsule, PrivateKey privateKey) throws NoSuchAlgorithmException
     {
         GroupElement primeXG = capsule.getXG();
         GroupElement primeE = capsule.getE();
@@ -91,11 +93,12 @@ public class Proxy
         // (capsule.E + capsule.V) * hash_bn
         GroupElement tmpKdfPoint = primeE.add(primeV).mul(hash);
 
-        Scalar symmetricKey = ProxyUtils.SHA256(tmpKdfPoint);
-        return symmetricKey;
+        Scalar symmetricKeyA = ProxyUtils.SHA256(tmpKdfPoint);
+        Scalar symmetricKeyB = ProxyUtils.SHA3(tmpKdfPoint);
+        return Arrays.asList(symmetricKeyA, symmetricKeyB);
     }
     
-    public static Scalar decapsulate(Capsule capsule, PrivateKey privateKey) throws NoSuchAlgorithmException
+    public static List<Scalar> decapsulate(Capsule capsule, PrivateKey privateKey) throws NoSuchAlgorithmException
     {
         if(capsule.getIsReEncrypted())
         {
@@ -145,11 +148,14 @@ public class Proxy
         System.out.println(ProxyUtils.toHex(capsuleFromByte));
      
         System.out.println("Decapsulate Original!");
-        Scalar symmetricKey = (Scalar) cp.get(1);
+        Scalar symmetricKeyA = (Scalar) cp.get(1);
+        Scalar symmetricKeyB = (Scalar) cp.get(2);
 
-        Scalar decapsulatedSymmetricKey = Proxy.decapsulate(capsule, sk);
-        System.out.println(ProxyUtils.toHex(symmetricKey.toBytes()));  
-        System.out.println(ProxyUtils.toHex(decapsulatedSymmetricKey.toBytes()));  
+        List<Scalar> decapsulatedSymmetricKeys = Proxy.decapsulate(capsule, sk);
+        System.out.println(ProxyUtils.toHex(symmetricKeyA.toBytes()));
+        System.out.println(ProxyUtils.toHex(decapsulatedSymmetricKeys.get(0).toBytes()));
+        System.out.println(ProxyUtils.toHex(symmetricKeyB.toBytes()));
+        System.out.println(ProxyUtils.toHex(decapsulatedSymmetricKeys.get(1).toBytes()));
         
         System.out.println("\nReKey test!");
         KeyPair kpB = Proxy.generateKeyPair();
@@ -169,11 +175,13 @@ public class Proxy
         System.out.println(ProxyUtils.toHex(reCapsuleByte));
         System.out.println(ProxyUtils.toHex(reCapsuleFromByte));
 
-        System.out.println("\n Decapsulate ReCapsule!");        
-        
-        Scalar decapsulatedReSymmetricKey = Proxy.decapsulate(reCapsule, skB);
-        System.out.println(ProxyUtils.toHex(symmetricKey.toBytes()));  
-        System.out.println(ProxyUtils.toHex(decapsulatedReSymmetricKey.toBytes()));  
+        System.out.println("\n Decapsulate ReCapsule!");
+
+        List<Scalar> decapsulatedReSymmetricKeys = Proxy.decapsulate(reCapsule, skB);
+        System.out.println(ProxyUtils.toHex(symmetricKeyA.toBytes()));
+        System.out.println(ProxyUtils.toHex(decapsulatedReSymmetricKeys.get(0).toBytes()));
+        System.out.println(ProxyUtils.toHex(symmetricKeyB.toBytes()));
+        System.out.println(ProxyUtils.toHex(decapsulatedReSymmetricKeys.get(1).toBytes()));
 
     }
 }
