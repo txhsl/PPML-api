@@ -5,7 +5,8 @@ import org.ethereum.crypto.ECKey;
 import org.spongycastle.util.encoders.Hex;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import org.txhsl.ppml.api.model.DataSetRequest;
+import org.txhsl.ppml.api.model.PRERequest;
+import org.txhsl.ppml.api.model.RBACRequest;
 import org.txhsl.ppml.api.model.Volume;
 import org.txhsl.ppml.api.service.BlockchainService;
 import org.txhsl.ppml.api.service.CryptoService;
@@ -34,8 +35,9 @@ public class DataSetController {
         this.cryptoService = cryptoService;
     }
 
+    // PRE
     @PostMapping("/create")
-    public DataSetRequest create(@RequestBody DataSetRequest request) throws Exception {
+    public PRERequest create(@RequestBody PRERequest request) throws Exception {
         ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
 
         int count = 0;
@@ -56,7 +58,7 @@ public class DataSetController {
     }
 
     @PostMapping("/add")
-    public DataSetRequest add(@RequestBody DataSetRequest request) throws Exception {
+    public PRERequest add(@RequestBody PRERequest request) throws Exception {
         ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
         String encryptedKey = request.getEncryptedKey();
         String hash = request.getHash();
@@ -72,7 +74,7 @@ public class DataSetController {
     }
 
     @PostMapping("/share")
-    public DataSetRequest share(@RequestBody DataSetRequest request) throws Exception {
+    public PRERequest share(@RequestBody PRERequest request) throws Exception {
         ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
         String encryptedKey = request.getEncryptedKey();
         String toPub = request.getTo();
@@ -89,7 +91,7 @@ public class DataSetController {
     }
 
     @PostMapping("/getReEncryptedKey")
-    public DataSetRequest getReEncryptedKey(@RequestBody DataSetRequest request) throws Exception {
+    public PRERequest getReEncryptedKey(@RequestBody PRERequest request) throws Exception {
         String encryptedKey = request.getEncryptedKey();
 
         String reKey = blockchainService.getOwner(encryptedKey).equals(blockchainService.getCredentials().getAddress()) ?
@@ -101,7 +103,7 @@ public class DataSetController {
     }
 
     @PostMapping("/decryptHash")
-    public DataSetRequest decryptHash(@RequestBody DataSetRequest request) throws Exception {
+    public PRERequest decryptHash(@RequestBody PRERequest request) throws Exception {
         ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
         String reEncryptedKey = request.getReEncryptedKey();
         String encryptedHash = request.getEncryptedHash();
@@ -114,7 +116,7 @@ public class DataSetController {
     }
 
     @PostMapping("/get")
-    public DataSetRequest get(@RequestBody DataSetRequest request) throws Exception {
+    public PRERequest get(@RequestBody PRERequest request) throws Exception {
         String encryptedKey = request.getEncryptedKey();
         this.current = encryptedKey;
         int amount = blockchainService.getAmount(encryptedKey);
@@ -138,7 +140,7 @@ public class DataSetController {
     }
 
     @PostMapping("/upload")
-    public DataSetRequest upload(@RequestParam("file") MultipartFile multipartFile) throws Exception {
+    public PRERequest upload(@RequestParam("file") MultipartFile multipartFile) throws Exception {
         ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
         String encryptedKey = this.current;
 
@@ -147,7 +149,7 @@ public class DataSetController {
 
         String hash = ipfsService.upload(encPath);
 
-        DataSetRequest request = new DataSetRequest();
+        PRERequest request = new PRERequest();
         request.setHash(hash);
         request.setName(multipartFile.getName());
         request.setCompleted(true);
@@ -156,7 +158,7 @@ public class DataSetController {
     }
 
     @PostMapping("/download")
-    public DataSetRequest download(@RequestBody DataSetRequest request) throws Exception {
+    public PRERequest download(@RequestBody PRERequest request) throws Exception {
         ECKey ecKey = ECKey.fromPrivate(blockchainService.getCredentials().getEcKeyPair().getPrivateKey());
         String reEncryptedKey = request.getReEncryptedKey();
 
@@ -213,5 +215,105 @@ public class DataSetController {
         GroupElement ge = new GroupElement(crv, crv.getCurve().createPoint(BigInteger.ONE,BigInteger.ONE));
         System.out.println(Base58.encode(ProxyUtils.SHA256(ge).toBytes()));
         System.out.println(Base58.encode(ProxyUtils.SHA3(ge).toBytes()));
+    }
+
+    // RBAC
+    @PostMapping("/getRole")
+    public RBACRequest getRole(@RequestBody RBACRequest request) throws Exception {
+        request.setRole(blockchainService.getRole(request.getUser()));
+        return request;
+    }
+
+    @PostMapping("/createData")
+    public RBACRequest createData(@RequestBody RBACRequest request) throws Exception {
+        if(!blockchainService.getCredentials().getAddress().equals(blockchainService.getAdminAddr())) {
+            throw new Exception("Permission denied");
+        }
+        String name = request.getName();
+        blockchainService.addData(name, request.getAddress());
+        request.setAddress(blockchainService.getDCAddr(name));
+        request.setCompleted(true);
+        return request;
+    }
+
+    @PostMapping("/createRole")
+    public RBACRequest createRole(@RequestBody RBACRequest request) throws Exception {
+        if(!blockchainService.getCredentials().getAddress().equals(blockchainService.getAdminAddr())) {
+            throw new Exception("Permission denied");
+        }
+        String name = request.getName();
+        blockchainService.addRole(name, request.getAddress());
+        request.setAddress(blockchainService.getRCAddr(name));
+        request.setCompleted(true);
+        return request;
+    }
+
+    @PostMapping("/registerUser")
+    public RBACRequest registerUser(@RequestBody RBACRequest request) throws Exception {
+        if(!blockchainService.getCredentials().getAddress().equals(blockchainService.getAdminAddr())) {
+            throw new Exception("Permission denied");
+        }
+        blockchainService.addUser(request.getUser(), request.getRole());
+        request.setCompleted(true);
+        return request;
+    }
+
+    @PostMapping("/assignReader")
+    public RBACRequest assignReader(@RequestBody RBACRequest request) throws Exception {
+        if(!blockchainService.checkAdmin(request.getData(), blockchainService.getAdminAddr())) {
+            throw new Exception("Permission denied");
+        }
+        blockchainService.assignReader(request.getData(), request.getRole());
+        request.setCompleted(true);
+        return request;
+    }
+
+    @PostMapping("/assignWriter")
+    public RBACRequest assignWriter(@RequestBody RBACRequest request) throws Exception {
+        if(!blockchainService.checkAdmin(request.getData(), blockchainService.getAdminAddr())) {
+            throw new Exception("Permission denied");
+        }
+        blockchainService.assignWriter(request.getData(), request.getRole());
+        request.setCompleted(true);
+        return request;
+    }
+
+    @PostMapping("/addVolume")
+    public RBACRequest addVolume(@RequestBody RBACRequest request) throws Exception {
+        if(!blockchainService.checkWriter(request.getData(), blockchainService.getCredentials().getAddress())) {
+            throw new Exception("Permission denied");
+        }
+        blockchainService.write(request.getData(), request.getName(), request.getHash());
+        request.setCompleted(true);
+        return request;
+    }
+
+    @PostMapping("/getVolume")
+    public RBACRequest getVolume(@RequestBody RBACRequest request) throws Exception {
+        if(!blockchainService.checkReader(request.getData(), blockchainService.getCredentials().getAddress())) {
+            throw new Exception("Permission denied");
+        }
+        String hash = blockchainService.read(request.getData(), request.getName());
+        request.setHash(hash);
+        request.setCompleted(true);
+        return request;
+    }
+
+    @PostMapping("/uploadFile")
+    public RBACRequest uploadFile(@RequestParam("file") MultipartFile multipartFile) throws Exception {
+        File file = ipfsService.save(multipartFile, multipartFile.getOriginalFilename());
+        String hash = ipfsService.upload(file.getAbsolutePath());
+        RBACRequest request = new RBACRequest();
+        request.setHash(hash);
+        request.setCompleted(true);
+        return request;
+    }
+
+    @PostMapping("/downloadFile")
+    public RBACRequest downloadFile(@RequestBody RBACRequest request) throws Exception {
+        File file = ipfsService.download(request.getHash());
+        request.setPath(file.getAbsolutePath());
+        request.setCompleted(true);
+        return request;
     }
 }

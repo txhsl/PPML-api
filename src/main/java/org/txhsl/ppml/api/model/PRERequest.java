@@ -1,6 +1,6 @@
 package org.txhsl.ppml.api.model;
 
-public class DataSetRequest {
+public class PRERequest {
 
     private String key;
     private String encryptedKey;
@@ -18,7 +18,7 @@ public class DataSetRequest {
     private String to;
     private boolean completed;
 
-    public DataSetRequest() {
+    public PRERequest() {
 
     }
 

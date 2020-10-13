@@ -1,3 +1,4 @@
 {
-	"address": "0x2cbd598737390740ce89126e2b23d6071a8afeb9"
+	"pre": "0x2cbd598737390740ce89126e2b23d6071a8afeb9",
+	"rbac": "0x58c8bd6feb187bf667f08792efc029f2038ff3fc"
 }
