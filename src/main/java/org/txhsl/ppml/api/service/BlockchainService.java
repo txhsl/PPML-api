@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.FileCopyUtils;
 import org.txhsl.ppml.api.contract.DataSets_sol_DataSets;
 import org.txhsl.ppml.api.contract.System_sol_System;
+import org.txhsl.ppml.api.model.Volume;
 import org.txhsl.ppml.api.service.crypto.*;
 import org.web3j.abi.datatypes.Address;
 import org.web3j.abi.datatypes.Utf8String;
@@ -19,11 +20,14 @@ import org.web3j.crypto.WalletUtils;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameter;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
+import org.web3j.tuples.generated.Tuple3;
 import org.web3j.utils.Convert;
 
 import java.io.File;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 
 import static org.web3j.tx.gas.DefaultGasProvider.GAS_LIMIT;
@@ -110,6 +114,7 @@ public class BlockchainService {
                 password,
                 file.getAbsolutePath());
         LOGGER.info("Wallet opened: " + credentials.getAddress());
+        this.recover(this.credentials);
     }
 
     public Credentials getCredentials() {
@@ -185,15 +190,15 @@ public class BlockchainService {
         return receipt;
     }
 
-    public TransactionReceipt addRole(String name, String address) throws Exception {
-        TransactionReceipt receipt = this.systemContract.addRC(new Utf8String(name), new Address(address)).send();
-        LOGGER.info("Role added: " + name + ", admin: " + address);
+    public TransactionReceipt addRole(String name) throws Exception {
+        TransactionReceipt receipt = this.systemContract.addRC(new Utf8String(name)).send();
+        LOGGER.info("Role added: " + name + ", admin: " + this.credentials.getAddress());
         return receipt;
     }
 
-    public TransactionReceipt addData(String name, String address) throws Exception {
-        TransactionReceipt receipt = this.systemContract.addDC(new Utf8String(name), new Address(address)).send();
-        LOGGER.info("Data added: " + name + ", admin: " + address);
+    public TransactionReceipt addData(String name) throws Exception {
+        TransactionReceipt receipt = this.systemContract.addDC(new Utf8String(name)).send();
+        LOGGER.info("Data added: " + name + ", admin: " + this.credentials.getAddress());
         return receipt;
     }
 
@@ -209,9 +214,9 @@ public class BlockchainService {
         return receipt;
     }
 
-    public TransactionReceipt write(String data, String fileId, String hash) throws Exception {
-        TransactionReceipt receipt = this.systemContract.writeData(new Utf8String(data), new Utf8String(fileId), new Utf8String(hash)).send();
-        LOGGER.info("File added: " + fileId + ", hash: " + hash + ", in: " + data);
+    public TransactionReceipt write(String data, String fileName, String hash) throws Exception {
+        TransactionReceipt receipt = this.systemContract.writeData(new Utf8String(data), new Utf8String(fileName), new Utf8String(hash)).send();
+        LOGGER.info("File added: " + fileName + ", hash: " + hash + ", in: " + data);
         return receipt;
     }
 
@@ -235,11 +240,25 @@ public class BlockchainService {
         return this.systemContract.checkWriter(new Utf8String(data), new Address(address)).send().getValue();
     }
 
-    public boolean checkAdmin(String data, String address) throws Exception {
-        return this.systemContract.checkAdmin(new Utf8String(data), new Address(address)).send().getValue();
+    public boolean checkRoleAdmin(String role, String address) throws Exception {
+        return this.systemContract.checkRoleAdmin(new Utf8String(role), new Address(address)).send().getValue();
     }
 
-    public String read(String data, String fileId) throws Exception {
-        return this.systemContract.readData(new Utf8String(data), new Utf8String(fileId)).send().getValue();
+    public boolean checkDataAdmin(String data, String address) throws Exception {
+        return this.systemContract.checkDataAdmin(new Utf8String(data), new Address(address)).send().getValue();
+    }
+
+    public String getDataAdmin(String data) throws Exception {
+        return this.systemContract.getDataAdmin(new Utf8String(data)).send().getValue();
+    }
+
+    public int getTotal(String data) throws Exception {
+        return this.systemContract.getAmount(new Utf8String(data)).send().getValue().intValue();
+    }
+
+    public Volume read(String data, int id) throws Exception {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        Tuple3 tuple3 = this.systemContract.readData(new Utf8String(data), new Uint256(id)).send();
+        return new Volume(id, ((Utf8String)tuple3.getValue1()).getValue(), sdf.format(new Date(((Uint256)tuple3.getValue2()).getValue().intValue() * 1000L)), ((Utf8String)tuple3.getValue3()).getValue());
     }
 }

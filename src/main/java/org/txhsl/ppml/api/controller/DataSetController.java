@@ -226,11 +226,8 @@ public class DataSetController {
 
     @PostMapping("/createData")
     public RBACRequest createData(@RequestBody RBACRequest request) throws Exception {
-        if(!blockchainService.getCredentials().getAddress().equals(blockchainService.getAdminAddr())) {
-            throw new Exception("Permission denied");
-        }
-        String name = request.getName();
-        blockchainService.addData(name, request.getAddress());
+        String name = request.getData();
+        blockchainService.addData(name);
         request.setAddress(blockchainService.getDCAddr(name));
         request.setCompleted(true);
         return request;
@@ -238,11 +235,8 @@ public class DataSetController {
 
     @PostMapping("/createRole")
     public RBACRequest createRole(@RequestBody RBACRequest request) throws Exception {
-        if(!blockchainService.getCredentials().getAddress().equals(blockchainService.getAdminAddr())) {
-            throw new Exception("Permission denied");
-        }
-        String name = request.getName();
-        blockchainService.addRole(name, request.getAddress());
+        String name = request.getRole();
+        blockchainService.addRole(name);
         request.setAddress(blockchainService.getRCAddr(name));
         request.setCompleted(true);
         return request;
@@ -250,7 +244,7 @@ public class DataSetController {
 
     @PostMapping("/registerUser")
     public RBACRequest registerUser(@RequestBody RBACRequest request) throws Exception {
-        if(!blockchainService.getCredentials().getAddress().equals(blockchainService.getAdminAddr())) {
+        if(!blockchainService.checkRoleAdmin(request.getRole(), blockchainService.getCredentials().getAddress())) {
             throw new Exception("Permission denied");
         }
         blockchainService.addUser(request.getUser(), request.getRole());
@@ -260,7 +254,7 @@ public class DataSetController {
 
     @PostMapping("/assignReader")
     public RBACRequest assignReader(@RequestBody RBACRequest request) throws Exception {
-        if(!blockchainService.checkAdmin(request.getData(), blockchainService.getAdminAddr())) {
+        if(!blockchainService.checkDataAdmin(request.getData(), blockchainService.getCredentials().getAddress())) {
             throw new Exception("Permission denied");
         }
         blockchainService.assignReader(request.getData(), request.getRole());
@@ -270,10 +264,24 @@ public class DataSetController {
 
     @PostMapping("/assignWriter")
     public RBACRequest assignWriter(@RequestBody RBACRequest request) throws Exception {
-        if(!blockchainService.checkAdmin(request.getData(), blockchainService.getAdminAddr())) {
+        if(!blockchainService.checkDataAdmin(request.getData(), blockchainService.getCredentials().getAddress())) {
             throw new Exception("Permission denied");
         }
         blockchainService.assignWriter(request.getData(), request.getRole());
+        request.setCompleted(true);
+        return request;
+    }
+
+    @PostMapping("/checkReader")
+    public RBACRequest checkReader(@RequestBody RBACRequest request) throws Exception {
+        request.setPermitted(blockchainService.checkReader(request.getData(), request.getRole()));
+        request.setCompleted(true);
+        return request;
+    }
+
+    @PostMapping("/checkWriter")
+    public RBACRequest checkWriter(@RequestBody RBACRequest request) throws Exception {
+        request.setPermitted(blockchainService.checkWriter(request.getData(), request.getRole()));
         request.setCompleted(true);
         return request;
     }
@@ -288,13 +296,22 @@ public class DataSetController {
         return request;
     }
 
-    @PostMapping("/getVolume")
-    public RBACRequest getVolume(@RequestBody RBACRequest request) throws Exception {
+    @PostMapping("/getVolumes")
+    public RBACRequest getVolumes(@RequestBody RBACRequest request) throws Exception {
         if(!blockchainService.checkReader(request.getData(), blockchainService.getCredentials().getAddress())) {
             throw new Exception("Permission denied");
         }
-        String hash = blockchainService.read(request.getData(), request.getName());
-        request.setHash(hash);
+
+        int amount = blockchainService.getTotal(request.getData());
+
+        Volume[] volumes = new Volume[amount];
+        for(int i = 1; i <= amount; i++) {
+            volumes[i - 1] = blockchainService.read(request.getData(), i);
+        }
+
+        request.setOwner(blockchainService.getDataAdmin(request.getData()));
+        request.setAmount(amount);
+        request.setVolumes(volumes);
         request.setCompleted(true);
         return request;
     }
