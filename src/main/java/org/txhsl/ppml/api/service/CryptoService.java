@@ -1,23 +1,10 @@
 package org.txhsl.ppml.api.service;
 
 import io.ipfs.multibase.Base58;
-import org.ethereum.ConcatKDFBytesGenerator;
-import org.ethereum.crypto.ECKey;
-import org.ethereum.crypto.EthereumIESEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongycastle.asn1.sec.SECNamedCurves;
 import org.spongycastle.asn1.x9.X9ECParameters;
-import org.spongycastle.crypto.AsymmetricCipherKeyPair;
-import org.spongycastle.crypto.BufferedBlockCipher;
-import org.spongycastle.crypto.InvalidCipherTextException;
-import org.spongycastle.crypto.KeyGenerationParameters;
-import org.spongycastle.crypto.agreement.ECDHBasicAgreement;
-import org.spongycastle.crypto.digests.SHA256Digest;
-import org.spongycastle.crypto.engines.AESEngine;
-import org.spongycastle.crypto.generators.ECKeyPairGenerator;
-import org.spongycastle.crypto.macs.HMac;
-import org.spongycastle.crypto.modes.SICBlockCipher;
 import org.spongycastle.crypto.params.*;
 import org.spongycastle.math.ec.ECPoint;
 import org.springframework.stereotype.Service;
@@ -49,29 +36,29 @@ public class CryptoService {
 
     public byte[] encryptKeyGen(ECPoint toPub) throws NoSuchAlgorithmException {
         List<Object> cp = Proxy.encapsulate(new PublicKey(new GroupElement(new Curve("secp256k1"), toPub)));
-        LOGGER.info("Symmetric key generated: " + Base58.encode(((Scalar) cp.get(1)).toBytes()));
+        LOGGER.info("DataSet key generated: " + Base58.encode(((Scalar) cp.get(1)).toBytes()));
         return ((Capsule) cp.get(0)).toBytes();
     }
 
-    public byte[] encryptHash(byte[] capsule, BigInteger prv, byte[] plaintext) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
-        List<Scalar> symmetricKeys = Proxy.decapsulate(Capsule.fromBytes(capsule), PrivateKey.fromBytes(prv.toByteArray()));
-        byte[] key = symmetricKeys.get(0).toBytes();
-        LOGGER.info("Symmetric key A decrypted: " + Base58.encode(key));
+    public BigInteger prvGen(byte[] capsule, BigInteger prv) throws NoSuchAlgorithmException {
+        List<Scalar> symmetricKey = Proxy.decapsulate(Capsule.fromBytes(capsule), PrivateKey.fromBytes(prv.toByteArray()));
+        byte[] seed = symmetricKey.get(0).toBytes();
+        BigInteger prvkey = PrivateKey.generate(new Curve("secp256k1"), seed).getValue().getValue();
+        LOGGER.info("Role key generated: " + Base58.encode(prvkey.toByteArray()));
+        return prvkey;
+    }
+
+    public byte[] aesEncryptHash(byte[] capsule, BigInteger prv, byte[] plaintext) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
+        List<Scalar> symmetricKey = Proxy.decapsulate(Capsule.fromBytes(capsule), PrivateKey.fromBytes(prv.toByteArray()));
+        byte[] key = symmetricKey.get(0).toBytes();
+        LOGGER.info("DataSet key decrypted: " + Base58.encode(key));
         return aesEncrypt(key, plaintext);
     }
 
-    @Deprecated
-    public byte[] encryptHashB(byte[] capsule, BigInteger prv, byte[] plaintext) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
-        List<Scalar> symmetricKeys = Proxy.decapsulate(Capsule.fromBytes(capsule), PrivateKey.fromBytes(prv.toByteArray()));
-        byte[] key = symmetricKeys.get(1).toBytes();
-        LOGGER.info("Symmetric key B decrypted: " + Base58.encode(key));
-        return aesEncrypt(key, plaintext);
-    }
-
-    public String encryptFile(byte[] capsule, BigInteger prv, File raw) throws Exception {
-        List<Scalar> symmetricKeys = Proxy.decapsulate(Capsule.fromBytes(capsule), PrivateKey.fromBytes(prv.toByteArray()));
-        byte[] key = symmetricKeys.get(1).toBytes();
-        LOGGER.info("Symmetric key B decrypted: " + Base58.encode(key));
+    public String aesEncryptFile(byte[] capsule, BigInteger prv, File raw) throws Exception {
+        List<Scalar> symmetricKey = Proxy.decapsulate(Capsule.fromBytes(capsule), PrivateKey.fromBytes(prv.toByteArray()));
+        byte[] key = symmetricKey.get(0).toBytes();
+        LOGGER.info("DataSet key decrypted: " + Base58.encode(key));
 
         return aesEncFile(key, raw);
     }
@@ -86,99 +73,19 @@ public class CryptoService {
         return Proxy.generateReEncryptionKey(PrivateKey.fromBytes(prv.toByteArray()), new PublicKey(new GroupElement(new Curve("secp256k1"), pub))).toBytes();
     }
 
-    public byte[] decryptHash(byte[] reCapsule, BigInteger prv, byte[] cipher) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
-        List<Scalar> reSymmetricKeys = Proxy.decapsulate(Capsule.fromBytes(reCapsule), PrivateKey.fromBytes(prv.toByteArray()));
-        byte[] key = reSymmetricKeys.get(0).toBytes();
-        LOGGER.info("Symmetric key A decrypted: " + Base58.encode(key));
+    public byte[] aesDecryptHash(byte[] reCapsule, BigInteger prv, byte[] cipher) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
+        List<Scalar> reSymmetricKey = Proxy.decapsulate(Capsule.fromBytes(reCapsule), PrivateKey.fromBytes(prv.toByteArray()));
+        byte[] key = reSymmetricKey.get(0).toBytes();
+        LOGGER.info("DataSet key decrypted: " + Base58.encode(key));
         return aesDecrypt(key, cipher);
     }
 
-    @Deprecated
-    public byte[] decryptHashB(byte[] reCapsule, BigInteger prv, byte[] cipher) throws NoSuchAlgorithmException, IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchPaddingException {
-        List<Scalar> reSymmetricKeys = Proxy.decapsulate(Capsule.fromBytes(reCapsule), PrivateKey.fromBytes(prv.toByteArray()));
-        byte[] key = reSymmetricKeys.get(1).toBytes();
-        LOGGER.info("Symmetric key B decrypted: " + Base58.encode(key));
-        return aesDecrypt(key, cipher);
-    }
-
-    public String decryptFile(byte[] reCapsule, BigInteger prv, File cipher, String name) throws Exception {
-        List<Scalar> reSymmetricKeys = Proxy.decapsulate(Capsule.fromBytes(reCapsule), PrivateKey.fromBytes(prv.toByteArray()));
-        byte[] key = reSymmetricKeys.get(1).toBytes();
-        LOGGER.info("Symmetric key B decrypted: " + Base58.encode(key));
+    public String aesDecryptFile(byte[] reCapsule, BigInteger prv, File cipher, String name) throws Exception {
+        List<Scalar> reSymmetricKey = Proxy.decapsulate(Capsule.fromBytes(reCapsule), PrivateKey.fromBytes(prv.toByteArray()));
+        byte[] key = reSymmetricKey.get(0).toBytes();
+        LOGGER.info("DataSet key decrypted: " + Base58.encode(key));
 
         return aesDecFile(key, cipher, name);
-    }
-
-    public byte[] eccDecrypt(BigInteger prv, byte[] cipher) throws InvalidCipherTextException, IOException {
-        ByteArrayInputStream is = new ByteArrayInputStream(cipher);
-        byte[] ephemBytes = new byte[2*((curve.getCurve().getFieldSize()+7)/8) + 1];
-        is.read(ephemBytes);
-        ECPoint ephem = curve.getCurve().decodePoint(ephemBytes);
-        byte[] IV = new byte[KEY_SIZE /8];
-        is.read(IV);
-        byte[] cipherBody = new byte[is.available()];
-        is.read(cipherBody);
-
-        EthereumIESEngine iesEngine = makeIESEngine(false, ephem, prv, IV);
-        byte[] plaintext = iesEngine.processBlock(cipherBody, 0, cipherBody.length);
-
-        LOGGER.info("Cipher " + Base58.encode(cipher) + " decrypted, plaintext: " + new String(plaintext));
-
-        return plaintext;
-    }
-
-    public byte[] eccEncrypt(ECPoint toPub, byte[] plaintext) throws InvalidCipherTextException, IOException {
-        ECKeyPairGenerator eGen = new ECKeyPairGenerator();
-        SecureRandom random = new SecureRandom();
-        KeyGenerationParameters gParam = new ECKeyGenerationParameters(curve, random);
-
-        eGen.init(gParam);
-
-        byte[] IV = new byte[KEY_SIZE/8];
-        new SecureRandom().nextBytes(IV);
-
-        AsymmetricCipherKeyPair ephemPair = eGen.generateKeyPair();
-        BigInteger prv = ((ECPrivateKeyParameters)ephemPair.getPrivate()).getD();
-        ECPoint pub = ((ECPublicKeyParameters)ephemPair.getPublic()).getQ();
-        EthereumIESEngine iesEngine = makeIESEngine(true, toPub, prv, IV);
-
-
-        ECKeyGenerationParameters keygenParams = new ECKeyGenerationParameters(curve, random);
-        ECKeyPairGenerator generator = new ECKeyPairGenerator();
-        generator.init(keygenParams);
-
-        ECKeyPairGenerator gen = new ECKeyPairGenerator();
-        gen.init(new ECKeyGenerationParameters(ECKey.CURVE, random));
-
-        byte[] cipher = iesEngine.processBlock(plaintext, 0, plaintext.length);
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        bos.write(pub.getEncoded(false));
-        bos.write(IV);
-        bos.write(cipher);
-
-        LOGGER.info("Plaintext " + new String(plaintext) + " encrypted, cipher: " + Base58.encode(bos.toByteArray()));
-
-        return bos.toByteArray();
-    }
-
-    private EthereumIESEngine makeIESEngine(boolean isEncrypt, ECPoint pub, BigInteger prv, byte[] IV) {
-        AESEngine aesFastEngine = new AESEngine();
-
-        EthereumIESEngine iesEngine = new EthereumIESEngine(
-                new ECDHBasicAgreement(),
-                new ConcatKDFBytesGenerator(new SHA256Digest()),
-                new HMac(new SHA256Digest()),
-                new SHA256Digest(),
-                new BufferedBlockCipher(new SICBlockCipher(aesFastEngine)));
-
-        byte[] d = new byte[] {};
-        byte[] e = new byte[] {};
-
-        IESParameters p = new IESWithCipherParameters(d, e, KEY_SIZE, KEY_SIZE);
-        ParametersWithIV parametersWithIV = new ParametersWithIV(p, IV);
-
-        iesEngine.init(isEncrypt, new ECPrivateKeyParameters(prv, curve), new ECPublicKeyParameters(pub, curve), parametersWithIV);
-        return iesEngine;
     }
 
     public byte[] aesKeyGen() throws NoSuchAlgorithmException {
@@ -215,7 +122,7 @@ public class CryptoService {
 
     public String aesEncFile(byte[] key, File raw) throws Exception {
         FileInputStream in = new FileInputStream(raw);
-        LOGGER.info("File encryption key: " + Base58.encode(key));
+        LOGGER.info("Target file: " + raw.getAbsolutePath() + ", key: " + Base58.encode(key));
 
         byte[] salt = new byte[8];
         SecureRandom srand = new SecureRandom();
@@ -258,7 +165,7 @@ public class CryptoService {
         RandomAccessFile raf = new RandomAccessFile(encrypted, "rw");
         byte[] salt = new byte[8];
         byte[] iv = new byte[16];
-        LOGGER.info("File decryption key: " + Base58.encode(key));
+        LOGGER.info("Target file: " + encrypted.getAbsolutePath() + ", key: " + Base58.encode(key));
 
         raf.seek(encrypted.length() - (salt.length + iv.length));
         raf.read(salt, 0, salt.length);

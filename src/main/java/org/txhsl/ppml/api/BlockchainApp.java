@@ -5,14 +5,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.web3j.protocol.Web3j;
-import org.txhsl.ppml.api.service.BlockchainService;
 
 import javax.annotation.PostConstruct;
 
 @SpringBootApplication
 public class BlockchainApp {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(BlockchainService.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(BlockchainApp.class);
 
     private final Web3j web3j;
 

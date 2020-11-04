@@ -34,13 +34,25 @@ public class PrivateKey
         SecureRandom secureRandom = new SecureRandom();
         X9ECParameters secnamecurves = SECNamedCurves.getByName(curve.getName());
         ECDomainParameters ecParams = new ECDomainParameters(secnamecurves.getCurve(), secnamecurves.getG(), secnamecurves.getN(), secnamecurves.getH());
-	ECKeyGenerationParameters keyGenParam = new ECKeyGenerationParameters(ecParams, secureRandom);
-	gen.init(keyGenParam);
-	AsymmetricCipherKeyPair kp = gen.generateKeyPair();
+        ECKeyGenerationParameters keyGenParam = new ECKeyGenerationParameters(ecParams, secureRandom);
+        gen.init(keyGenParam);
+        AsymmetricCipherKeyPair kp = gen.generateKeyPair();
         ECPrivateKeyParameters privatekey = (ECPrivateKeyParameters)kp.getPrivate();
         ECPublicKeyParameters publickey = (ECPublicKeyParameters)kp.getPublic();
         return new PrivateKey(new Scalar(privatekey.getD(), curve), new PublicKey(new GroupElement(curve, publickey.getQ())));
+    }
 
+    public static PrivateKey generate(Curve curve, byte[] seed) {
+        ECKeyPairGenerator gen = new ECKeyPairGenerator();
+        SecureRandom secureRandom = new SecureRandom(seed);
+        X9ECParameters secnamecurves = SECNamedCurves.getByName(curve.getName());
+        ECDomainParameters ecParams = new ECDomainParameters(secnamecurves.getCurve(), secnamecurves.getG(), secnamecurves.getN(), secnamecurves.getH());
+        ECKeyGenerationParameters keyGenParam = new ECKeyGenerationParameters(ecParams, secureRandom);
+        gen.init(keyGenParam);
+        AsymmetricCipherKeyPair kp = gen.generateKeyPair();
+        ECPrivateKeyParameters privatekey = (ECPrivateKeyParameters)kp.getPrivate();
+        ECPublicKeyParameters publickey = (ECPublicKeyParameters)kp.getPublic();
+        return new PrivateKey(new Scalar(privatekey.getD(), curve), new PublicKey(new GroupElement(curve, publickey.getQ())));
     }
 
     public Scalar getValue()

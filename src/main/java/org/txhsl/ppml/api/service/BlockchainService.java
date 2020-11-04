@@ -7,8 +7,9 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.FileCopyUtils;
-import org.txhsl.ppml.api.contract.DataSets_sol_DataSets;
-import org.txhsl.ppml.api.contract.System_sol_System;
+import org.txhsl.ppml.api.contract.DataSet_sol_DataSet;
+import org.txhsl.ppml.api.contract.PPML_sol_PPML;
+import org.txhsl.ppml.api.contract.Role_sol_Role;
 import org.txhsl.ppml.api.model.Volume;
 import org.txhsl.ppml.api.service.crypto.*;
 import org.web3j.abi.datatypes.Address;
@@ -20,7 +21,6 @@ import org.web3j.crypto.WalletUtils;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameter;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
-import org.web3j.tuples.generated.Tuple3;
 import org.web3j.utils.Convert;
 
 import java.io.File;
@@ -40,10 +40,7 @@ public class BlockchainService {
 
     private final Web3j web3j;
     private Credentials credentials;
-    // PRE
-    private DataSets_sol_DataSets dataSetContract;
-    // RBAC
-    private System_sol_System systemContract;
+    private PPML_sol_PPML systemContract;
     private final String adminAddr = "0x6a2fb5e3bf37f0c3d90db4713f7ad4a3b2c24111";
 
     public BlockchainService(Web3j web3j) {
@@ -60,50 +57,28 @@ public class BlockchainService {
 
     // Self
     public boolean recover(Credentials credentials) {
-        boolean flag = true;
         try {
             Resource resource = new ClassPathResource("system.json");
             JSONObject json = new JSONObject(new String(FileCopyUtils.copyToByteArray(resource.getFile())));
 
-            this.dataSetContract = DataSets_sol_DataSets.load(json.getString("pre"), web3j, credentials, GAS_PRICE, GAS_LIMIT);
-            LOGGER.info("PRE Contract connected: " + this.dataSetContract.getContractAddress());
+            this.systemContract = PPML_sol_PPML.load(json.getString("ppml"), this.web3j, credentials, GAS_PRICE, GAS_LIMIT);
+            LOGGER.info("Contract connected: " + this.systemContract.getContractAddress());
         } catch (Exception e) {
             LOGGER.error("Contract address not found. " + e.getMessage());
-            flag = false;
+            return false;
         }
-
-        try {
-            Resource resource = new ClassPathResource("system.json");
-            JSONObject json = new JSONObject(new String(FileCopyUtils.copyToByteArray(resource.getFile())));
-
-            this.systemContract = System_sol_System.load(json.getString("rbac"), web3j, credentials, GAS_PRICE, GAS_LIMIT);
-            LOGGER.info("RBAC Contract connected: " + this.systemContract.getContractAddress());
-        } catch (Exception e) {
-            LOGGER.error("Contract address not found. " + e.getMessage());
-            flag = false;
-        }
-
-        return flag;
+        return true;
     }
 
     public boolean deploy(Credentials credentials) throws Exception {
-        if(this.dataSetContract == null) {
-            this.dataSetContract = DataSets_sol_DataSets.deploy(web3j, credentials, GAS_PRICE, GAS_LIMIT).send();
-            LOGGER.info("PRE Contract deployed: " + this.dataSetContract.getContractAddress());
-        }
-        else {
-            LOGGER.info("PRE Contract existed: " + this.dataSetContract.getContractAddress());
-        }
-
         if(this.systemContract == null) {
-            this.systemContract = System_sol_System.deploy(web3j, credentials, GAS_PRICE, GAS_LIMIT).send();
-            LOGGER.info("RBAC Contract deployed: " + this.systemContract.getContractAddress());
+            this.systemContract = PPML_sol_PPML.deploy(this.web3j, credentials, GAS_PRICE, GAS_LIMIT).send();
+            LOGGER.info("Contract deployed: " + this.systemContract.getContractAddress());
         }
         else {
-            LOGGER.info("RBAC Contract existed: " + this.systemContract.getContractAddress());
+            LOGGER.info("Contract existed: " + this.systemContract.getContractAddress());
         }
-
-        return this.dataSetContract.getTransactionReceipt().isPresent() && this.systemContract.getTransactionReceipt().isPresent();
+        return true;
     }
 
     // UserController
@@ -129,136 +104,127 @@ public class BlockchainService {
     }
 
     // DataSetController
-    // PRE
-    public TransactionReceipt createDataSet(String key, Capsule capsule) throws Exception {
-        TransactionReceipt receipt = this.dataSetContract.createDataSet(new Utf8String(key), new Uint256(capsule.getE().getValue().getXCoord().toBigInteger()),
+    public TransactionReceipt createRole(String name, String pubkey, Capsule capsule) throws Exception {
+        TransactionReceipt receipt = this.systemContract.addRC(new Utf8String(name), new Utf8String(pubkey), new Uint256(capsule.getE().getValue().getXCoord().toBigInteger()),
                 new Uint256(capsule.getE().getValue().getYCoord().toBigInteger()), new Uint256(capsule.getV().getValue().getXCoord().toBigInteger()),
                 new Uint256(capsule.getV().getValue().getYCoord().toBigInteger()), new Uint256(capsule.getS().getValue())).send();
-        LOGGER.info("DataSet created: " + key);
+        LOGGER.info("Role created: " + name + ", pubkey: " + pubkey);
         return receipt;
     }
 
-    public TransactionReceipt addVolume(String key, String name, String hash) throws Exception {
-        TransactionReceipt receipt = this.dataSetContract.addVolume(new Utf8String(key), new Utf8String(name), new Utf8String(hash)).send();
-        LOGGER.info("Volume added. Key: " + key + ", volume: " + hash);
+    public TransactionReceipt createDataSet(String name, Capsule capsule) throws Exception {
+        TransactionReceipt receipt = this.systemContract.addDC(new Utf8String(name), new Uint256(capsule.getE().getValue().getXCoord().toBigInteger()),
+                new Uint256(capsule.getE().getValue().getYCoord().toBigInteger()), new Uint256(capsule.getV().getValue().getXCoord().toBigInteger()),
+                new Uint256(capsule.getV().getValue().getYCoord().toBigInteger()), new Uint256(capsule.getS().getValue())).send();
+        LOGGER.info("DataSet created: " + name);
         return receipt;
     }
 
-    public TransactionReceipt shareKey(String key, String to, ReEncryptionKey reEncryptedKey) throws Exception {
-        TransactionReceipt receipt = this.dataSetContract.shareKey(new Utf8String(key), new Address(to), new Uint256(reEncryptedKey.getReKey().getValue()),
-                new Uint256(reEncryptedKey.getInternalPublicKey().getValue().getXCoord().toBigInteger()), new Uint256(reEncryptedKey.getInternalPublicKey().getValue().getYCoord().toBigInteger())).send();
-        LOGGER.info("Key " + key + " shared, to " + to);
+    public TransactionReceipt register(String address, String role, ReEncryptionKey reKey) throws Exception {
+        TransactionReceipt receipt = this.systemContract.addUser(new Address(address), new Utf8String(role), new Uint256(reKey.getReKey().getValue()),
+                new Uint256(reKey.getInternalPublicKey().getValue().getXCoord().toBigInteger()), new Uint256(reKey.getInternalPublicKey().getValue().getYCoord().toBigInteger())).send();
+        LOGGER.info("Role " + role + " shared, to " + address);
         return receipt;
     }
 
-    public String getOwner(String key) throws Exception {
-        return this.dataSetContract.getOwner(new Utf8String(key)).send().getValue();
-    }
-
-    public int getAmount(String key) throws Exception {
-        return this.dataSetContract.getAmount(new Utf8String(key)).send().getValue().intValue();
-    }
-
-    public String getVolumeName(String key, int volume) throws Exception {
-        return this.dataSetContract.getVolumeName(new Utf8String(key), new Uint256(volume)).send().getValue();
-    }
-
-    public int getVolumeTime(String key, int volume) throws Exception {
-        return this.dataSetContract.getVolumeTime(new Utf8String(key), new Uint256(volume)).send().getValue().intValue();
-    }
-
-    public String getVolumeHash(String key, int volume) throws Exception {
-        return this.dataSetContract.getVolumeHash(new Utf8String(key), new Uint256(volume)).send().getValue();
-    }
-
-    public Capsule getReEncryptedKey(String key) throws Exception {
-        List<Uint256> reCapsule = this.dataSetContract.getReEncryptedKey(new Address(this.credentials.getAddress()), new Utf8String(key)).send().getValue();
-        Curve crv = new Curve("secp256k1");
-        return new Capsule(new GroupElement(crv, crv.getCurve().createPoint(reCapsule.get(0).getValue(), reCapsule.get(1).getValue())),
-                new GroupElement(crv, crv.getCurve().createPoint(reCapsule.get(2).getValue(), reCapsule.get(3).getValue())),
-                new Scalar(reCapsule.get(4).getValue(), crv), new GroupElement(crv, crv.getCurve().createPoint(reCapsule.get(5).getValue(), reCapsule.get(6).getValue())), true);
-    }
-
-    // RBAC
-    public String getAdminAddr() {
-        return this.adminAddr;
-    }
-
-    public TransactionReceipt addUser(String address, String roleName) throws Exception {
-        TransactionReceipt receipt = this.systemContract.register(new Address(address), new Utf8String(roleName)).send();
-        LOGGER.info("User registered: " + address + ", role: " + roleName);
+    public TransactionReceipt assignReader(String name, String role, ReEncryptionKey reKey) throws Exception {
+        TransactionReceipt receipt = this.systemContract.assignReader(new Utf8String(name), new Utf8String(role), new Uint256(reKey.getReKey().getValue()),
+                new Uint256(reKey.getInternalPublicKey().getValue().getXCoord().toBigInteger()), new Uint256(reKey.getInternalPublicKey().getValue().getYCoord().toBigInteger())).send();
+        LOGGER.info("DataSet " + name + " shared, to " + role);
         return receipt;
     }
 
-    public TransactionReceipt addRole(String name) throws Exception {
-        TransactionReceipt receipt = this.systemContract.addRC(new Utf8String(name)).send();
-        LOGGER.info("Role added: " + name + ", admin: " + this.credentials.getAddress());
+    public TransactionReceipt assignWriter(String name, String role) throws Exception {
+        TransactionReceipt receipt = this.systemContract.assignWriter(new Utf8String(name), new Utf8String(role)).send();
+        LOGGER.info("DataSet " + name + " shared, to " + role);
         return receipt;
     }
 
-    public TransactionReceipt addData(String name) throws Exception {
-        TransactionReceipt receipt = this.systemContract.addDC(new Utf8String(name)).send();
-        LOGGER.info("Data added: " + name + ", admin: " + this.credentials.getAddress());
-        return receipt;
+    public TransactionReceipt addvolume(String name, String volume, String hash) throws Exception {
+        DataSet_sol_DataSet dc = DataSet_sol_DataSet.load(this.getDCAddr(name), this.web3j, this.credentials, GAS_PRICE, GAS_LIMIT);
+        if(credentials.getAddress().equals(dc.owner().send().getValue())) {
+            return dc.addVolume(new Utf8String(volume), new Utf8String(hash)).send();
+        }
+        else {
+            return this.systemContract.proxyAdd(new Utf8String(name), new Utf8String(volume), new Utf8String(hash)).send();
+        }
     }
 
-    public TransactionReceipt assignReader(String data, String role) throws Exception {
-        TransactionReceipt receipt = this.systemContract.assignReader(new Utf8String(data), new Utf8String(role)).send();
-        LOGGER.info("Reader assigned: " + role + ", on: " + data);
-        return receipt;
+    public String getOwner(String name) throws Exception {
+        DataSet_sol_DataSet dc = DataSet_sol_DataSet.load(this.getDCAddr(name), this.web3j, this.credentials, GAS_PRICE, GAS_LIMIT);
+        return dc.owner().send().getValue();
     }
 
-    public TransactionReceipt assignWriter(String data, String role) throws Exception {
-        TransactionReceipt receipt = this.systemContract.assignWriter(new Utf8String(data), new Utf8String(role)).send();
-        LOGGER.info("Writer assigned: " + role + ", on: " + data);
-        return receipt;
-    }
-
-    public TransactionReceipt write(String data, String fileName, String hash) throws Exception {
-        TransactionReceipt receipt = this.systemContract.writeData(new Utf8String(data), new Utf8String(fileName), new Utf8String(hash)).send();
-        LOGGER.info("File added: " + fileName + ", hash: " + hash + ", in: " + data);
-        return receipt;
-    }
-
-    public String getRCAddr(String name) throws Exception {
-        return this.systemContract.getRC(new Utf8String(name)).send().getValue();
-    }
-
-    public String getDCAddr(String name) throws Exception {
-        return this.systemContract.getDC(new Utf8String(name)).send().getValue();
+    public int getAmount(String name) throws Exception {
+        DataSet_sol_DataSet dc = DataSet_sol_DataSet.load(this.getDCAddr(name), this.web3j, this.credentials, GAS_PRICE, GAS_LIMIT);
+        return dc.amount().send().getValue().intValue();
     }
 
     public String getRole(String address) throws Exception {
         return this.systemContract.getRole(new Address(address)).send().getValue();
     }
 
+    public Capsule getUserKey(String addr) throws Exception {
+        List<Uint256> reCapsule = this.systemContract.getKey(new Address(addr)).send().getValue();
+        Curve crv = new Curve("secp256k1");
+        return new Capsule(new GroupElement(crv, crv.getCurve().createPoint(reCapsule.get(0).getValue(), reCapsule.get(1).getValue())),
+                new GroupElement(crv, crv.getCurve().createPoint(reCapsule.get(2).getValue(), reCapsule.get(3).getValue())),
+                new Scalar(reCapsule.get(4).getValue(), crv), new GroupElement(crv, crv.getCurve().createPoint(reCapsule.get(5).getValue(), reCapsule.get(6).getValue())), true);
+    }
+
+    public Capsule getRoleKey(String role, String data) throws Exception {
+        Role_sol_Role rc = Role_sol_Role.load(this.getRCAddr(role), this.web3j, this.credentials, GAS_PRICE, GAS_LIMIT);
+        List<Uint256> reCapsule = rc.getReading(new Address(this.getDCAddr(data))).send().getValue();
+
+        Curve crv = new Curve("secp256k1");
+        return new Capsule(new GroupElement(crv, crv.getCurve().createPoint(reCapsule.get(0).getValue(), reCapsule.get(1).getValue())),
+                new GroupElement(crv, crv.getCurve().createPoint(reCapsule.get(2).getValue(), reCapsule.get(3).getValue())),
+                new Scalar(reCapsule.get(4).getValue(), crv), new GroupElement(crv, crv.getCurve().createPoint(reCapsule.get(5).getValue(), reCapsule.get(6).getValue())), true);
+    }
+
+    public Volume read(String name, int id) throws Exception {
+        DataSet_sol_DataSet dc = DataSet_sol_DataSet.load(this.getDCAddr(name), this.web3j, this.credentials, GAS_PRICE, GAS_LIMIT);
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        String volume = dc.getVolumeName(new Uint256(id)).send().getValue();
+        String time = sdf.format(new Date(dc.getVolumeTime(new Uint256(id)).send().getValue().intValue() * 1000L));
+        String hash = dc.getVolumeHash(new Uint256(id)).send().getValue();
+        return new Volume(id, volume, time, hash);
+    }
+
+    public String getAdminAddr() {
+        return this.adminAddr;
+    }
+
+    public String getRCAddr(String name) throws Exception {
+        return this.systemContract.getRC(new Utf8String(name)).send().getValue();
+    }
+
+    public String getRCPubKey(String name) throws Exception {
+        Role_sol_Role rc = Role_sol_Role.load(this.getRCAddr(name), this.web3j, this.credentials, GAS_PRICE, GAS_LIMIT);
+        return rc.pubkey().send().getValue();
+    }
+
+    public String getDCAddr(String name) throws Exception {
+        return this.systemContract.getDC(new Utf8String(name)).send().getValue();
+    }
+
     public boolean checkReader(String data, String address) throws Exception {
-        return this.systemContract.checkReader(new Utf8String(data), new Address(address)).send().getValue();
+        Role_sol_Role rc = Role_sol_Role.load(this.getRCAddr(this.getRole(address)), this.web3j, this.credentials, GAS_PRICE, GAS_LIMIT);
+        return !rc.getReading(new Address(this.getDCAddr(data))).send().getValue().get(0).getValue().equals(BigInteger.ZERO);
     }
 
     public boolean checkWriter(String data, String address) throws Exception {
-        return this.systemContract.checkWriter(new Utf8String(data), new Address(address)).send().getValue();
+        Role_sol_Role rc = Role_sol_Role.load(this.getRCAddr(this.getRole(address)), this.web3j, this.credentials, GAS_PRICE, GAS_LIMIT);
+        return rc.getWriting(new Address(this.getDCAddr(data))).send().getValue();
     }
 
     public boolean checkRoleAdmin(String role, String address) throws Exception {
-        return this.systemContract.checkRoleAdmin(new Utf8String(role), new Address(address)).send().getValue();
+        Role_sol_Role rc = Role_sol_Role.load(this.getRCAddr(role), this.web3j, this.credentials, GAS_PRICE, GAS_LIMIT);
+        return address.equals(rc.admin().send().getValue());
     }
 
-    public boolean checkDataAdmin(String data, String address) throws Exception {
-        return this.systemContract.checkDataAdmin(new Utf8String(data), new Address(address)).send().getValue();
-    }
-
-    public String getDataAdmin(String data) throws Exception {
-        return this.systemContract.getDataAdmin(new Utf8String(data)).send().getValue();
-    }
-
-    public int getTotal(String data) throws Exception {
-        return this.systemContract.getAmount(new Utf8String(data)).send().getValue().intValue();
-    }
-
-    public Volume read(String data, int id) throws Exception {
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        Tuple3 tuple3 = this.systemContract.readData(new Utf8String(data), new Uint256(id)).send();
-        return new Volume(id, ((Utf8String)tuple3.getValue1()).getValue(), sdf.format(new Date(((Uint256)tuple3.getValue2()).getValue().intValue() * 1000L)), ((Utf8String)tuple3.getValue3()).getValue());
+    public boolean checkDataOwner(String data, String address) throws Exception {
+        DataSet_sol_DataSet dc = DataSet_sol_DataSet.load(this.getDCAddr(data), this.web3j, this.credentials, GAS_PRICE, GAS_LIMIT);
+        return address.equals(dc.owner().send().getValue());
     }
 }
