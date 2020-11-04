@@ -21,6 +21,7 @@ import org.web3j.crypto.WalletUtils;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameter;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
+import org.web3j.tuples.generated.Tuple7;
 import org.web3j.utils.Convert;
 
 import java.io.File;
@@ -142,12 +143,11 @@ public class BlockchainService {
 
     public TransactionReceipt addvolume(String name, String volume, String hash) throws Exception {
         DataSet_sol_DataSet dc = DataSet_sol_DataSet.load(this.getDCAddr(name), this.web3j, this.credentials, GAS_PRICE, GAS_LIMIT);
-        if(credentials.getAddress().equals(dc.owner().send().getValue())) {
-            return dc.addVolume(new Utf8String(volume), new Utf8String(hash)).send();
-        }
-        else {
-            return this.systemContract.proxyAdd(new Utf8String(name), new Utf8String(volume), new Utf8String(hash)).send();
-        }
+        return dc.addVolume(new Utf8String(volume), new Utf8String(hash)).send();
+    }
+
+    public TransactionReceipt proxyAdd(String name, String volume, String hash) throws Exception {
+        return this.systemContract.proxyAdd(new Utf8String(name), new Utf8String(volume), new Utf8String(hash)).send();
     }
 
     public String getOwner(String name) throws Exception {
@@ -180,6 +180,16 @@ public class BlockchainService {
         return new Capsule(new GroupElement(crv, crv.getCurve().createPoint(reCapsule.get(0).getValue(), reCapsule.get(1).getValue())),
                 new GroupElement(crv, crv.getCurve().createPoint(reCapsule.get(2).getValue(), reCapsule.get(3).getValue())),
                 new Scalar(reCapsule.get(4).getValue(), crv), new GroupElement(crv, crv.getCurve().createPoint(reCapsule.get(5).getValue(), reCapsule.get(6).getValue())), true);
+    }
+
+    public Capsule getDataKey(String data) throws Exception {
+        DataSet_sol_DataSet dc = DataSet_sol_DataSet.load(this.getDCAddr(data), this.web3j, this.credentials, GAS_PRICE, GAS_LIMIT);
+        Tuple7<Uint256, Uint256, Uint256, Uint256, Uint256, Uint256, Uint256> capsule = dc.cipher().send();
+
+        Curve crv = new Curve("secp256k1");
+        return new Capsule(new GroupElement(crv, crv.getCurve().createPoint(capsule.getValue1().getValue(), capsule.getValue2().getValue())),
+                new GroupElement(crv, crv.getCurve().createPoint(capsule.getValue3().getValue(), capsule.getValue4().getValue())),
+                new Scalar(capsule.getValue5().getValue(), crv), new GroupElement(crv, crv.getCurve().createPoint(capsule.getValue6().getValue(), capsule.getValue7().getValue())), false);
     }
 
     public Volume read(String name, int id) throws Exception {
