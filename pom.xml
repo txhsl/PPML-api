@@ -67,12 +67,6 @@
             <artifactId>ethereumj-core</artifactId>
             <version>1.12.0-RELEASE</version>
         </dependency>
-        <dependency>
-            <groupId>org.tribuo</groupId>
-            <artifactId>tribuo-all</artifactId>
-            <version>4.0.0</version>
-            <type>pom</type>
-        </dependency>
     </dependencies>
 
 </project>
