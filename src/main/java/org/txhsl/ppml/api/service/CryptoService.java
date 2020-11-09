@@ -8,7 +8,7 @@ import org.spongycastle.asn1.x9.X9ECParameters;
 import org.spongycastle.crypto.params.*;
 import org.spongycastle.math.ec.ECPoint;
 import org.springframework.stereotype.Service;
-import org.txhsl.ppml.api.service.crypto.*;
+import org.txhsl.ppml.api.service.crypto.pre.*;
 
 import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;

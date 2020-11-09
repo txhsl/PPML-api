@@ -1,4 +1,4 @@
-package org.txhsl.ppml.api.service.crypto;
+package org.txhsl.ppml.api.service.crypto.pre;
 
 import org.spongycastle.jce.ECNamedCurveTable;
 import org.spongycastle.jce.spec.ECNamedCurveParameterSpec;
